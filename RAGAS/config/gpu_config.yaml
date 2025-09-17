@@ -1,0 +1,71 @@
+# Конфигурация для GPU (до 24GB VRAM)
+experiment:
+  name: "rag_gpu_experiment"
+  description: "RAG эксперимент с GPU ускорением"
+  tags: ["rag", "gpu", "russian", "evaluation"]
+
+# Настройки данных
+data:
+  input_path: "data/documents"
+  dataset_path: "data/russian_qa_dataset.json"
+  chunk_size: 1500
+  chunk_overlap: 300
+  text_splitter: "recursive"
+
+# Настройки моделей для GPU
+models:
+  # Эмбеддинг модель (большая для GPU)
+  embedding:
+    name: "sentence-transformers/paraphrase-multilingual-mpnet-base-v2"
+    device: "cuda"
+    normalize_embeddings: true
+    
+  # Генеративная модель (большая для GPU)
+  generator:
+    name: "microsoft/DialoGPT-large"
+    device: "cuda"
+    max_new_tokens: 512
+    temperature: 0.7
+    do_sample: true
+    torch_dtype: "float16"  # для экономии памяти
+
+# Настройки векторной базы
+vector_store:
+  type: "chroma"
+  persist_directory: "data/vector_db_gpu"
+  collection_name: "documents"
+
+# Настройки ретривера
+retriever:
+  k: 8
+  search_type: "similarity"
+  fetch_k: 25
+
+# Настройки оценки
+evaluation:
+  metrics:
+    - "cosine_similarity"
+    - "rouge"
+    - "bleu"
+  batch_size: 16
+  save_predictions: true
+
+# Настройки MLflow
+mlflow:
+  experiment_name: "RAG_GPU_Experiments"
+  tracking_uri: "file:./mlruns"
+  log_artifacts: true
+  log_models: true
+
+# Настройки веб-интерфейса
+web:
+  interface: "gradio"
+  port: 7860
+  host: "0.0.0.0"
+  share: false
+
+# Настройки логирования
+logging:
+  level: "INFO"
+  format: "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+  file: "logs/rag_gpu_experiment.log"

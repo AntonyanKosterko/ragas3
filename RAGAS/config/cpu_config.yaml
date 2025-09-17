@@ -1,0 +1,74 @@
+# Конфигурация для CPU (легковесные модели)
+experiment:
+  name: "rag_cpu_experiment"
+  description: "RAG эксперимент для CPU с квантизованными моделями"
+  tags: ["rag", "cpu", "russian", "quantized", "evaluation"]
+
+# Настройки данных
+data:
+  input_path: "data/documents"
+  dataset_path: "data/russian_qa_dataset.json"
+  chunk_size: 800
+  chunk_overlap: 150
+  text_splitter: "recursive"
+
+# Настройки моделей для CPU (легковесные)
+models:
+  # Эмбеддинг модель (маленькая для CPU)
+  embedding:
+    name: "sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2"
+    device: "cpu"
+    normalize_embeddings: true
+    
+  # Генеративная модель (оптимизированная для CPU)
+  generator:
+    name: "microsoft/DialoGPT-small"
+    device: "cpu"
+    max_new_tokens: 128
+    temperature: 0.7
+    do_sample: true
+    torch_dtype: "float32"
+    # Параметры для квантизации (раскомментируйте если установлен bitsandbytes)
+    # quantization_config:
+    #   load_in_8bit: true
+    #   llm_int8_threshold: 6.0
+
+# Настройки векторной базы
+vector_store:
+  type: "faiss"  # FAISS быстрее на CPU
+  persist_directory: "data/vector_db_cpu"
+  collection_name: "documents"
+
+# Настройки ретривера
+retriever:
+  k: 3
+  search_type: "similarity"
+  fetch_k: 10
+
+# Настройки оценки
+evaluation:
+  metrics:
+    - "cosine_similarity"
+    - "rouge"
+  batch_size: 4
+  save_predictions: true
+
+# Настройки MLflow
+mlflow:
+  experiment_name: "RAG_CPU_Experiments"
+  tracking_uri: "file:./mlruns"
+  log_artifacts: true
+  log_models: true
+
+# Настройки веб-интерфейса
+web:
+  interface: "streamlit"  # Streamlit легче для CPU
+  port: 8501
+  host: "0.0.0.0"
+  share: false
+
+# Настройки логирования
+logging:
+  level: "INFO"
+  format: "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+  file: "logs/rag_cpu_experiment.log"

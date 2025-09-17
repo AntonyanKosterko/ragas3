@@ -1,0 +1,78 @@
+# Базовая конфигурация для RAG эксперимента
+experiment:
+  name: "rag_experiment"
+  description: "Базовый эксперимент RAG системы"
+  tags: ["rag", "russian", "evaluation"]
+
+# Настройки данных
+data:
+  input_path: "data/documents"
+  dataset_path: "data/russian_qa_dataset.json"
+  chunk_size: 1000
+  chunk_overlap: 200
+  text_splitter: "recursive"
+  
+# Настройки датасетов
+datasets:
+  rag_bench:
+    path: "datasets/rag_bench"
+    documents_file: "documents_for_rag.json"
+    qa_pairs_file: "qa_pairs.json"
+    vector_db_path: "datasets/rag_bench/vector_db"
+
+# Настройки моделей
+models:
+  # Эмбеддинг модель
+  embedding:
+    name: "all-MiniLM-L6-v2"
+    device: "auto"  # auto, cuda, cpu
+    normalize_embeddings: true
+    
+  # Генеративная модель
+  generator:
+    name: "rag"
+    device: "cpu"  # auto, cuda, cpu
+    max_new_tokens: 100
+    temperature: 0.7
+    do_sample: true
+
+# Настройки векторной базы
+vector_store:
+  type: "chroma"  # chroma, faiss
+  persist_directory: "data/vector_db"
+  collection_name: "documents"
+
+# Настройки ретривера
+retriever:
+  k: 5  # количество документов для извлечения
+  search_type: "similarity"  # similarity, mmr
+  fetch_k: 20  # для MMR
+
+# Настройки оценки
+evaluation:
+  metrics:
+    - "cosine_similarity"
+    - "rouge"
+    - "bleu"
+  batch_size: 8
+  save_predictions: true
+
+# Настройки MLflow
+mlflow:
+  experiment_name: "RAG_Experiments"
+  tracking_uri: "file:./mlruns"
+  log_artifacts: true
+  log_models: true
+
+# Настройки веб-интерфейса
+web:
+  interface: "gradio"  # gradio, streamlit
+  port: 7860
+  host: "0.0.0.0"
+  share: false
+
+# Настройки логирования
+logging:
+  level: "INFO"
+  format: "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+  file: "logs/rag_experiment.log"
