@@ -3,6 +3,27 @@ __pycache__/
 *.py[cod]
 *$py.class
 
+# logs
+logs/
+mlruns/
+results/
+
+# models
+models/
+
+# datasets
+datasets/
+
+# data
+data/
+
+# tests
+tests/
+
+rag_env/
+
+
+
 # C extensions
 *.so
 
@@ -136,6 +157,7 @@ datasets/rag_v1_ruen/train.json
 datasets/rag_bench/texts.json
 datasets/rag_bench/questions.json
 datasets/rag_bench/documents_for_rag.json
+datasets/rag_bench/qa_pairs_full.json
 
 # Vector databases (will be regenerated)
 data/vector_db/
@@ -149,6 +171,7 @@ mlruns/
 results/*.json
 results/*.csv
 logs/*.log
+*.log
 
 # Model cache and downloads
 .cache/
@@ -158,6 +181,45 @@ models/
 *.pt
 *.pth
 *.ckpt
+
+# Hugging Face cache
+.cache/huggingface/
+.cache/transformers/
+.cache/torch/
+.cache/sentence_transformers/
+
+# Model weights and checkpoints
+**/pytorch_model.bin
+**/model.safetensors
+**/adapter_model.bin
+**/adapter_model.safetensors
+**/pytorch_model-*.bin
+**/model-*.safetensors
+
+# Large data files
+*.parquet
+*.feather
+*.h5
+*.hdf5
+*.pkl
+*.pickle
+
+# Jupyter notebook checkpoints
+.ipynb_checkpoints/
+
+# Weights & Biases
+wandb/
+
+# TensorBoard logs
+runs/
+tensorboard_logs/
+
+# Large temporary files
+*.zip
+*.tar.gz
+*.tar.bz2
+*.7z
+*.rar
 
 # Temporary files
 *.tmp

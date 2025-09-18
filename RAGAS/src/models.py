@@ -109,7 +109,16 @@ class ModelManager:
         
         try:
             # Загружаем токенизатор
-            tokenizer = AutoTokenizer.from_pretrained(model_name)
+            try:
+                tokenizer = AutoTokenizer.from_pretrained(model_name)
+            except Exception as e:
+                # Если не удается загрузить с AutoTokenizer, пробуем LlamaTokenizer
+                if "mistral" in model_name.lower() or "llama" in model_name.lower():
+                    from transformers import LlamaTokenizer
+                    tokenizer = LlamaTokenizer.from_pretrained(model_name)
+                else:
+                    raise e
+            
             if tokenizer.pad_token is None:
                 tokenizer.pad_token = tokenizer.eos_token
             
@@ -123,30 +132,76 @@ class ModelManager:
                         llm_int8_threshold=quant_config.get('llm_int8_threshold', 6.0)
                     )
             
-            # Загружаем модель
+            # Загружаем модель с использованием safetensors
             model_kwargs = {
-                'torch_dtype': getattr(torch, generator_config.get('torch_dtype', 'float32')),
+                'torch_dtype': getattr(torch, generator_config.get('torch_dtype', 'float16')),
                 'device_map': 'auto' if self.device == 'cuda' else None,
-                'quantization_config': quantization_config
+                'quantization_config': quantization_config,
+                'trust_remote_code': True,
+                'use_safetensors': True  # Используем safetensors для безопасности
             }
             
-            model = AutoModelForCausalLM.from_pretrained(
-                model_name,
-                **model_kwargs
-            )
+            try:
+                model = AutoModelForCausalLM.from_pretrained(
+                    model_name,
+                    **model_kwargs
+                )
+            except Exception as e:
+                logger.info(f"Первая попытка загрузки модели не удалась: {e}")
+                # Если ошибка связана с TensorFlow весами, пробуем с from_tf=True
+                if "tensorflow" in str(e).lower() or "pytorch_model.bin" in str(e):
+                    logger.info("Пробуем загрузить модель с from_tf=True")
+                    try:
+                        model = AutoModelForCausalLM.from_pretrained(
+                            model_name,
+                            from_tf=True,
+                            **model_kwargs
+                        )
+                    except Exception as e2:
+                        # Если не удается загрузить с AutoModelForCausalLM, пробуем LlamaForCausalLM
+                        if "mistral" in model_name.lower() or "llama" in model_name.lower():
+                            from transformers import LlamaForCausalLM
+                            try:
+                                model = LlamaForCausalLM.from_pretrained(
+                                    model_name,
+                                    from_tf=True,
+                                    **model_kwargs
+                                )
+                            except Exception as e3:
+                                model = LlamaForCausalLM.from_pretrained(
+                                    model_name,
+                                    **model_kwargs
+                                )
+                        else:
+                            raise e2
+                else:
+                    # Если не удается загрузить с AutoModelForCausalLM, пробуем LlamaForCausalLM
+                    if "mistral" in model_name.lower() or "llama" in model_name.lower():
+                        from transformers import LlamaForCausalLM
+                        model = LlamaForCausalLM.from_pretrained(
+                            model_name,
+                            **model_kwargs
+                        )
+                    else:
+                        raise e
             
             # Создаем пайплайн
-            pipe = pipeline(
-                "text-generation",
-                model=model,
-                tokenizer=tokenizer,
-                max_new_tokens=generator_config.get('max_new_tokens', 256),
-                temperature=generator_config.get('temperature', 0.7),
-                do_sample=generator_config.get('do_sample', True),
-                pad_token_id=tokenizer.eos_token_id,
-                device=self.device,
-                truncation=True
-            )
+            pipe_kwargs = {
+                "task": "text-generation",
+                "model": model,
+                "tokenizer": tokenizer,
+                "max_new_tokens": generator_config.get('max_new_tokens', 256),
+                "temperature": generator_config.get('temperature', 0.7),
+                "do_sample": generator_config.get('do_sample', True),
+                "pad_token_id": tokenizer.eos_token_id,
+                "truncation": True
+            }
+            
+            # Добавляем device только если не используется accelerate
+            if not hasattr(model, 'hf_device_map') or model.hf_device_map is None:
+                pipe_kwargs['device'] = self.device
+            
+            pipe = pipeline(**pipe_kwargs)
             
             # Обертываем в LangChain
             generator_model = HuggingFacePipeline(pipeline=pipe)

@@ -19,7 +19,7 @@ def download_rag_bench():
         questions_dataset = load_dataset("ai-forever/rag-bench-public-questions")
         
         # Сохраняем в локальные файлы
-        output_dir = "/home/antonkosterin/Courses/RAG/RAGAS/datasets/rag_bench"
+        output_dir = "/home/ubuntu/RAF/ragas3/RAGAS/datasets/rag_bench"
         os.makedirs(output_dir, exist_ok=True)
         
         # Сохраняем тексты
@@ -113,7 +113,7 @@ def extract_documents_for_rag(texts_dataset, output_file: str = "documents_for_r
             }
     
     # Сохраняем документы
-    output_path = f"/home/antonkosterin/Courses/RAG/RAGAS/datasets/rag_bench/{output_file}"
+    output_path = f"/home/ubuntu/RAF/ragas3/RAGAS/datasets/rag_bench/{output_file}"
     with open(output_path, 'w', encoding='utf-8') as f:
         json.dump(documents, f, ensure_ascii=False, indent=2)
     
@@ -147,7 +147,7 @@ def extract_qa_pairs(questions_dataset, output_file: str = "qa_pairs.json"):
             })
     
     # Сохраняем пары
-    output_path = f"/home/antonkosterin/Courses/RAG/RAGAS/datasets/rag_bench/{output_file}"
+    output_path = f"/home/ubuntu/RAF/ragas3/RAGAS/datasets/rag_bench/{output_file}"
     with open(output_path, 'w', encoding='utf-8') as f:
         json.dump(qa_pairs, f, ensure_ascii=False, indent=2)
     

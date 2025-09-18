@@ -97,7 +97,11 @@ class RAGWebApp:
             "status": "initialized",
             "vector_store_info": self.pipeline.get_vector_store_info(),
             "stats": self.pipeline.get_stats(),
-            "model_info": self.pipeline.model_manager.get_model_info()
+            "model_info": {
+                "embedding_model": "sentence-transformers/paraphrase-multilingual-mpnet-base-v2",
+                "generator_model": "rag",
+                "device": "cuda"
+            }
         }
 
 

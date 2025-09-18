@@ -16,7 +16,7 @@ def download_dataset():
         dataset = load_dataset("MexIvanov/RAG-v1-ruen")
         
         # Сохраняем в локальные файлы
-        output_dir = "/home/antonkosterin/Courses/RAG/RAGAS/datasets/rag_v1_ruen"
+        output_dir = "/home/ubuntu/RAF/ragas3/RAGAS/datasets/rag_v1_ruen"
         
         # Сохраняем train split
         train_data = dataset['train']
@@ -107,7 +107,7 @@ def extract_documents_for_rag(dataset, output_file: str = "documents_for_rag.jso
             }
     
     # Сохраняем документы
-    output_path = f"/home/antonkosterin/Courses/RAG/RAGAS/datasets/rag_v1_ruen/{output_file}"
+    output_path = f"/home/ubuntu/RAF/ragas3/RAGAS/datasets/rag_v1_ruen/{output_file}"
     with open(output_path, 'w', encoding='utf-8') as f:
         json.dump(documents, f, ensure_ascii=False, indent=2)
     

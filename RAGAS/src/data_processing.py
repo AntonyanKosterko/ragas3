@@ -75,10 +75,10 @@ class DataProcessor:
     
     def load_documents(self, input_path: str) -> List[Document]:
         """
-        Загружает документы из указанной директории.
+        Загружает документы из указанной директории или JSON файла.
         
         Args:
-            input_path: Путь к директории с документами
+            input_path: Путь к директории с документами или JSON файлу
             
         Returns:
             List[Document]: Список загруженных документов
@@ -86,8 +86,56 @@ class DataProcessor:
         logger.info(f"Загрузка документов из: {input_path}")
         
         if not os.path.exists(input_path):
-            raise FileNotFoundError(f"Директория {input_path} не найдена")
+            raise FileNotFoundError(f"Путь {input_path} не найден")
         
+        documents = []
+        
+        # Проверяем, является ли путь JSON файлом
+        if input_path.endswith('.json'):
+            documents = self._load_documents_from_json(input_path)
+        else:
+            # Загружаем из директории
+            documents = self._load_documents_from_directory(input_path)
+        
+        logger.info(f"Всего загружено документов: {len(documents)}")
+        return documents
+    
+    def _load_documents_from_json(self, json_path: str) -> List[Document]:
+        """Загружает документы из JSON файла."""
+        logger.info(f"Загрузка документов из JSON: {json_path}")
+        
+        with open(json_path, 'r', encoding='utf-8') as f:
+            data = json.load(f)
+        
+        documents = []
+        
+        # Обрабатываем разные форматы JSON
+        if isinstance(data, dict):
+            # Формат: {id: {content: ..., metadata: ...}}
+            for doc_id, doc_data in data.items():
+                content = doc_data.get('content', '')
+                metadata = doc_data.get('metadata', {})
+                metadata['source'] = json_path
+                metadata['doc_id'] = doc_id
+                
+                if content:
+                    documents.append(Document(page_content=content, metadata=metadata))
+        elif isinstance(data, list):
+            # Формат: [{content: ..., metadata: ...}, ...]
+            for i, doc_data in enumerate(data):
+                content = doc_data.get('content', '')
+                metadata = doc_data.get('metadata', {})
+                metadata['source'] = json_path
+                metadata['doc_id'] = i
+                
+                if content:
+                    documents.append(Document(page_content=content, metadata=metadata))
+        
+        logger.info(f"Загружено {len(documents)} документов из JSON")
+        return documents
+    
+    def _load_documents_from_directory(self, input_path: str) -> List[Document]:
+        """Загружает документы из директории."""
         documents = []
         
         # Определяем типы файлов для загрузки
@@ -112,7 +160,6 @@ class DataProcessor:
             except Exception as e:
                 logger.warning(f"Ошибка при загрузке файлов {file_type}: {e}")
         
-        logger.info(f"Всего загружено документов: {len(documents)}")
         return documents
     
     def split_documents(self, documents: List[Document]) -> List[Document]:

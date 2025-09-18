@@ -1,0 +1,94 @@
+# Оптимальная конфигурация для RTX 3090 (24GB VRAM) с сильными моделями
+experiment:
+  name: "rag_gpu_optimal_experiment"
+  description: "RAG система с сильными моделями на RTX 3090 и полным датасетом"
+  tags: ["rag", "gpu", "rtx3090", "strong_models", "full_dataset", "production"]
+
+# Настройки данных - используем полный датасет RAG Bench
+data:
+  input_path: "datasets/rag_bench/documents_for_rag.json"  # Полный датасет документов
+  dataset_path: "datasets/rag_bench/qa_pairs_full.json"  # Все пары вопрос-ответ
+  chunk_size: 2000  # Оптимальный размер чанков
+  chunk_overlap: 400
+  text_splitter: "recursive"
+
+# Настройки датасетов
+datasets:
+  rag_bench:
+    path: "datasets/rag_bench"
+    documents_file: "documents_for_rag.json"
+    qa_pairs_file: "qa_pairs_full.json"
+    vector_db_path: "datasets/rag_bench/vector_db"
+
+# Настройки моделей для RTX 3090 (сильные модели)
+models:
+  # Эмбеддинг модель (самая мощная многоязычная)
+  embedding:
+    name: "sentence-transformers/paraphrase-multilingual-mpnet-base-v2"
+    device: "cuda"
+    normalize_embeddings: true
+    
+  # Генеративная модель (сильная многоязычная модель)
+  generator:
+    name: "microsoft/DialoGPT-small"  # Сильная многоязычная модель
+    device: "cuda"
+    torch_dtype: "float16"  # Экономия памяти
+    max_new_tokens: 512
+    temperature: 0.7
+    do_sample: true
+    top_p: 0.9
+    top_k: 50
+    repetition_penalty: 1.1
+
+# Настройки векторной базы
+vector_store:
+  type: "chroma"
+  persist_directory: "datasets/rag_bench/vector_db"
+  collection_name: "rag_bench_documents"
+
+# Настройки ретривера (оптимизированные)
+retriever:
+  k: 10  # Больше документов для лучшего контекста
+  search_type: "similarity"
+  fetch_k: 30
+
+# Настройки оценки (расширенные метрики)
+evaluation:
+  metrics:
+    - "cosine_similarity"
+    - "rouge"
+    - "bleu"
+    - "exact_match"
+    - "length_ratio"
+    - "semantic_similarity"
+    - "answer_relevance"
+  batch_size: 2  # Уменьшаем для экономии памяти GPU
+  save_predictions: true
+  max_samples: 200  # Оцениваем больше примеров
+
+# Настройки MLflow
+mlflow:
+  experiment_name: "RAG_GPU_Optimal_Experiments"
+  tracking_uri: "file:./mlruns"
+  log_artifacts: true
+  log_models: true
+
+# Настройки веб-интерфейса
+web:
+  interface: "gradio"
+  port: 7860
+  host: "0.0.0.0"
+  share: false
+
+# Настройки логирования
+logging:
+  level: "INFO"
+  format: "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+  file: "logs/rag_gpu_optimal_experiment.log"
+
+# Настройки производительности
+performance:
+  use_gpu: true
+  gpu_memory_fraction: 0.9  # Используем 90% GPU памяти
+  enable_mixed_precision: true
+  cache_embeddings: true
