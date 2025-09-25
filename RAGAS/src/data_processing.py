@@ -25,6 +25,7 @@ from langchain_core.retrievers import BaseRetriever
 # from langchain_community.retrievers.mmr import MMRRetriever
 import chromadb
 from chromadb.config import Settings
+from tqdm import tqdm
 
 logger = logging.getLogger(__name__)
 
@@ -112,7 +113,8 @@ class DataProcessor:
         # Обрабатываем разные форматы JSON
         if isinstance(data, dict):
             # Формат: {id: {content: ..., metadata: ...}}
-            for doc_id, doc_data in data.items():
+            items = list(data.items())
+            for doc_id, doc_data in tqdm(items, desc="Загрузка документов", unit="док"):
                 content = doc_data.get('content', '')
                 metadata = doc_data.get('metadata', {})
                 metadata['source'] = json_path
@@ -122,7 +124,7 @@ class DataProcessor:
                     documents.append(Document(page_content=content, metadata=metadata))
         elif isinstance(data, list):
             # Формат: [{content: ..., metadata: ...}, ...]
-            for i, doc_data in enumerate(data):
+            for i, doc_data in enumerate(tqdm(data, desc="Загрузка документов", unit="док")):
                 content = doc_data.get('content', '')
                 metadata = doc_data.get('metadata', {})
                 metadata['source'] = json_path
@@ -214,6 +216,7 @@ class DataProcessor:
                     anonymized_telemetry=False
                 )
                 
+                print(f"🔄 Создание векторной базы ChromaDB из {len(chunks)} документов...")
                 vector_store = Chroma.from_documents(
                     documents=chunks,
                     embedding=embedding_model,
@@ -223,11 +226,13 @@ class DataProcessor:
                 )
                 
             elif store_type == 'faiss':
+                print(f"🔄 Создание векторной базы FAISS из {len(chunks)} документов...")
                 vector_store = FAISS.from_documents(
                     documents=chunks,
                     embedding=embedding_model
                 )
                 # Сохраняем FAISS индекс
+                print("💾 Сохранение FAISS индекса...")
                 vector_store.save_local(persist_directory)
                 
             else:

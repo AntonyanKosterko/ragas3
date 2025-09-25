@@ -1,0 +1,89 @@
+# Оптимизированная конфигурация для CPU (без GPU)
+experiment:
+  name: "rag_cpu_optimized_experiment"
+  description: "RAG эксперимент оптимизированный для CPU с минимальным потреблением ресурсов"
+  tags: ["rag", "cpu", "russian", "optimized", "evaluation"]
+
+# Настройки данных (оптимизированы для CPU)
+data:
+  input_path: "data/documents"
+  dataset_path: "data/russian_qa_dataset.json"
+  chunk_size: 500  # Уменьшено для быстрой обработки на CPU
+  chunk_overlap: 100  # Уменьшено для экономии памяти
+  text_splitter: "recursive"
+  
+# Настройки датасетов
+datasets:
+  rag_bench:
+    path: "datasets/rag_bench"
+    documents_file: "documents_for_rag.json"
+    qa_pairs_file: "qa_pairs.json"
+    vector_db_path: "datasets/rag_bench/vector_db"
+
+# Настройки моделей (оптимизированы для CPU)
+models:
+  # Эмбеддинг модель (самая легкая для CPU)
+  embedding:
+    name: "all-MiniLM-L6-v2"  # Самая быстрая и легкая модель
+    device: "cpu"
+    normalize_embeddings: true
+    
+  # Генеративная модель (кастомная RAG модель - не требует GPU)
+  generator:
+    name: "rag"  # Используем кастомную RAG модель
+    device: "cpu"
+    max_new_tokens: 150  # Увеличено для более полных ответов
+    temperature: 0.7
+    do_sample: true
+
+# Настройки векторной базы (оптимизированы для CPU)
+vector_store:
+  type: "faiss"  # FAISS быстрее на CPU чем ChromaDB
+  persist_directory: "data/vector_db_cpu"
+  collection_name: "documents"
+
+# Настройки ретривера (оптимизированы для CPU)
+retriever:
+  k: 3  # Уменьшено для быстрого поиска
+  search_type: "similarity"
+  fetch_k: 10  # Уменьшено для экономии ресурсов
+
+# Настройки оценки (оптимизированы для CPU)
+evaluation:
+  metrics:
+    - "cosine_similarity"
+    - "rouge"  # Убрали BLEU для экономии ресурсов
+  batch_size: 2  # Уменьшено для CPU
+  save_predictions: true
+
+# Настройки MLflow
+mlflow:
+  experiment_name: "RAG_CPU_Optimized_Experiments"
+  tracking_uri: "file:./mlruns"
+  log_artifacts: true
+  log_models: true
+
+# Настройки веб-интерфейса (оптимизированы для CPU)
+web:
+  interface: "gradio"  # Gradio легче чем Streamlit
+  port: 7860
+  host: "0.0.0.0"
+  share: false
+
+# Настройки логирования
+logging:
+  level: "INFO"
+  format: "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+  file: "logs/rag_cpu_optimized_experiment.log"
+
+# Дополнительные настройки для CPU оптимизации
+cpu_optimization:
+  # Настройки для экономии памяти
+  memory_efficient: true
+  # Максимальное количество потоков для обработки
+  max_workers: 2
+  # Использовать ли кэширование для ускорения
+  enable_caching: true
+  # Размер кэша (в MB)
+  cache_size_mb: 100
+

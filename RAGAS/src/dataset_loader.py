@@ -54,14 +54,27 @@ class DatasetLoader:
             documents_data = json.load(f)
         
         documents = []
-        for doc_id, doc_data in documents_data.items():
-            content = doc_data.get('content', '')
-            metadata = doc_data.get('metadata', {})
-            metadata['doc_id'] = doc_id
-            
-            if content:
-                doc = Document(page_content=content, metadata=metadata)
-                documents.append(doc)
+        
+        # Обрабатываем как словарь, так и список
+        if isinstance(documents_data, dict):
+            for doc_id, doc_data in documents_data.items():
+                content = doc_data.get('content', '')
+                metadata = doc_data.get('metadata', {})
+                metadata['doc_id'] = doc_id
+                
+                if content:
+                    doc = Document(page_content=content, metadata=metadata)
+                    documents.append(doc)
+        elif isinstance(documents_data, list):
+            for i, doc_data in enumerate(documents_data):
+                content = doc_data.get('content', '')
+                metadata = doc_data.get('metadata', {})
+                doc_id = doc_data.get('id', f'doc_{i}')
+                metadata['doc_id'] = doc_id
+                
+                if content:
+                    doc = Document(page_content=content, metadata=metadata)
+                    documents.append(doc)
         
         logger.info(f"Загружено {len(documents)} документов")
         return documents
@@ -133,7 +146,7 @@ class DatasetLoader:
                 embedding_function=embedding_model
             )
         elif vector_store_type == 'faiss':
-            vector_store = FAISS.load_local(vector_store_path, embedding_model)
+            vector_store = FAISS.load_local(vector_store_path, embedding_model, allow_dangerous_deserialization=True)
         else:
             raise ValueError(f"Неподдерживаемый тип векторной БД: {vector_store_type}")
         

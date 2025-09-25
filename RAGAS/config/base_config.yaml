@@ -6,19 +6,19 @@ experiment:
 
 # Настройки данных
 data:
-  input_path: "data/documents"
-  dataset_path: "data/russian_qa_dataset.json"
+  input_path: "datasets/sberquad/documents_for_rag.json"
+  dataset_path: "datasets/sberquad/qa_pairs.json"
   chunk_size: 1000
   chunk_overlap: 200
   text_splitter: "recursive"
   
 # Настройки датасетов
 datasets:
-  rag_bench:
-    path: "datasets/rag_bench"
+  sberquad:
+    path: "datasets/sberquad"
     documents_file: "documents_for_rag.json"
     qa_pairs_file: "qa_pairs.json"
-    vector_db_path: "datasets/rag_bench/vector_db"
+    vector_db_path: "datasets/sberquad/vector_db"
 
 # Настройки моделей
 models:
@@ -38,8 +38,8 @@ models:
 
 # Настройки векторной базы
 vector_store:
-  type: "chroma"  # chroma, faiss
-  persist_directory: "data/vector_db"
+  type: "faiss"  # chroma, faiss
+  persist_directory: "datasets/sberquad/vector_db"
   collection_name: "documents"
 
 # Настройки ретривера
