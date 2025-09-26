@@ -121,6 +121,18 @@ class RAGEvaluator:
             sample_metrics = self._compute_metrics(predicted_answer, ground_truth)
             sample_metrics['response_time'] = response_time
             
+            # Добавляем детальные временные метрики
+            if 'timing_metrics' in response:
+                timing_metrics = response['timing_metrics']
+                sample_metrics.update({
+                    'retrieval_time': timing_metrics.get('retrieval_time', 0),
+                    'generation_time': timing_metrics.get('generation_time', 0),
+                    'context_preparation_time': timing_metrics.get('context_preparation_time', 0),
+                    'retrieved_docs_count': timing_metrics.get('retrieved_docs_count', 0),
+                    'context_length': timing_metrics.get('context_length', 0),
+                    'answer_length': timing_metrics.get('answer_length', 0)
+                })
+            
             # Сохраняем предсказание
             prediction = {
                 'question': question,
@@ -246,9 +258,25 @@ class RAGEvaluator:
         # Создаем директорию если нужно
         Path(output_path).parent.mkdir(parents=True, exist_ok=True)
         
-        # Сохраняем в JSON
+        # Сохраняем в JSON (конвертируем numpy типы в Python типы)
+        def convert_numpy_types(obj):
+            if isinstance(obj, np.integer):
+                return int(obj)
+            elif isinstance(obj, np.floating):
+                return float(obj)
+            elif isinstance(obj, np.ndarray):
+                return obj.tolist()
+            elif isinstance(obj, dict):
+                return {key: convert_numpy_types(value) for key, value in obj.items()}
+            elif isinstance(obj, list):
+                return [convert_numpy_types(item) for item in obj]
+            return obj
+        
+        # Конвертируем numpy типы
+        results_converted = convert_numpy_types(results)
+        
         with open(output_path, 'w', encoding='utf-8') as f:
-            json.dump(results, f, ensure_ascii=False, indent=2)
+            json.dump(results_converted, f, ensure_ascii=False, indent=2)
         
         # Создаем CSV с предсказаниями
         if results['predictions']:

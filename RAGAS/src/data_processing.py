@@ -356,6 +356,12 @@ class DataProcessor:
             else:
                 raise ValueError("Неверный формат датасета")
             
+            # Ограничиваем количество примеров если указано в конфигурации
+            max_samples = self.config.get('evaluation', {}).get('max_samples')
+            if max_samples and max_samples < len(qa_pairs):
+                qa_pairs = qa_pairs[:max_samples]
+                logger.info(f"Ограничено до {max_samples} примеров для профилирования")
+            
             logger.info(f"Загружено {len(qa_pairs)} пар вопрос-ответ")
             return qa_pairs
             

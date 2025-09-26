@@ -132,26 +132,47 @@ class RAGPipeline:
     
     def query(self, question: str, return_sources: bool = True) -> Dict[str, Any]:
         """
-        Выполняет запрос к RAG системе.
+        Выполняет запрос к RAG системе с детальным профилированием.
         
         Args:
             question: Вопрос пользователя
             return_sources: Возвращать ли исходные документы
             
         Returns:
-            Dict[str, Any]: Ответ и метаданные
+            Dict[str, Any]: Ответ и метаданные с временными метриками
         """
         if not self.qa_chain:
             raise ValueError("RAG пайплайн не инициализирован")
         
-        start_time = time.time()
+        # Инициализируем временные метрики
+        timing_metrics = {}
+        total_start_time = time.time()
         
         try:
-            # Выполняем запрос
+            # Этап 1: Поиск релевантных документов
+            retrieval_start = time.time()
+            retriever_config = self.config['retriever']
+            k = retriever_config.get('k', 5)
+            
+            # Выполняем поиск документов
+            retrieved_docs = self.retriever.get_relevant_documents(question)
+            timing_metrics['retrieval_time'] = time.time() - retrieval_start
+            timing_metrics['retrieved_docs_count'] = len(retrieved_docs)
+            
+            # Этап 2: Подготовка контекста
+            context_start = time.time()
+            context = "\n\n".join([doc.page_content for doc in retrieved_docs])
+            timing_metrics['context_preparation_time'] = time.time() - context_start
+            timing_metrics['context_length'] = len(context)
+            
+            # Этап 3: Генерация ответа
+            generation_start = time.time()
             result = self.qa_chain.invoke({"query": question})
+            timing_metrics['generation_time'] = time.time() - generation_start
             
             # Извлекаем ответ
             answer = result.get("result", "")
+            timing_metrics['answer_length'] = len(answer)
             
             # Извлекаем исходные документы
             source_documents = []
@@ -165,43 +186,107 @@ class RAGPipeline:
                     for doc in result["source_documents"]
                 ]
             
-            # Вычисляем время ответа
-            response_time = time.time() - start_time
+            # Общее время
+            total_time = time.time() - total_start_time
+            timing_metrics['total_time'] = total_time
             
             # Обновляем статистику
-            self._update_stats(response_time)
+            self._update_stats(total_time, timing_metrics)
             
             response = {
                 "question": question,
                 "answer": answer,
                 "source_documents": source_documents,
-                "response_time": response_time,
+                "response_time": total_time,
+                "timing_metrics": timing_metrics,
                 "timestamp": time.time()
             }
             
-            logger.info(f"Запрос обработан за {response_time:.2f} секунд")
+            logger.info(f"Запрос обработан за {total_time:.2f} сек (ретривер: {timing_metrics['retrieval_time']:.2f}с, генерация: {timing_metrics['generation_time']:.2f}с)")
             return response
             
         except Exception as e:
+            total_time = time.time() - total_start_time
             logger.error(f"Ошибка при обработке запроса: {e}")
             return {
                 "question": question,
                 "answer": f"Ошибка при обработке запроса: {str(e)}",
                 "source_documents": [],
-                "response_time": time.time() - start_time,
+                "response_time": total_time,
+                "timing_metrics": timing_metrics,
                 "timestamp": time.time(),
                 "error": str(e)
             }
     
-    def _update_stats(self, response_time: float) -> None:
-        """Обновляет статистику пайплайна."""
+    def _update_stats(self, response_time: float, timing_metrics: Dict[str, Any] = None) -> None:
+        """Обновляет статистику пайплайна с детальными метриками."""
         self.stats['total_queries'] += 1
         self.stats['total_time'] += response_time
         self.stats['avg_response_time'] = self.stats['total_time'] / self.stats['total_queries']
+        
+        # Добавляем детальные временные метрики
+        if timing_metrics:
+            if 'detailed_timing' not in self.stats:
+                self.stats['detailed_timing'] = {
+                    'retrieval_times': [],
+                    'generation_times': [],
+                    'context_prep_times': [],
+                    'retrieved_docs_counts': [],
+                    'context_lengths': [],
+                    'answer_lengths': []
+                }
+            
+            # Собираем метрики для агрегации
+            self.stats['detailed_timing']['retrieval_times'].append(timing_metrics.get('retrieval_time', 0))
+            self.stats['detailed_timing']['generation_times'].append(timing_metrics.get('generation_time', 0))
+            self.stats['detailed_timing']['context_prep_times'].append(timing_metrics.get('context_preparation_time', 0))
+            self.stats['detailed_timing']['retrieved_docs_counts'].append(timing_metrics.get('retrieved_docs_count', 0))
+            self.stats['detailed_timing']['context_lengths'].append(timing_metrics.get('context_length', 0))
+            self.stats['detailed_timing']['answer_lengths'].append(timing_metrics.get('answer_length', 0))
     
     def get_stats(self) -> Dict[str, Any]:
-        """Возвращает статистику пайплайна."""
-        return self.stats.copy()
+        """Возвращает статистику пайплайна с агрегированными метриками."""
+        import numpy as np
+        
+        stats = self.stats.copy()
+        
+        # Вычисляем агрегированные метрики для детального профилирования
+        if 'detailed_timing' in stats and stats['detailed_timing']['retrieval_times']:
+            detailed = stats['detailed_timing']
+            
+            # Средние времена
+            stats['avg_retrieval_time'] = np.mean(detailed['retrieval_times'])
+            stats['avg_generation_time'] = np.mean(detailed['generation_times'])
+            stats['avg_context_prep_time'] = np.mean(detailed['context_prep_times'])
+            
+            # Медианные времена
+            stats['median_retrieval_time'] = np.median(detailed['retrieval_times'])
+            stats['median_generation_time'] = np.median(detailed['generation_times'])
+            stats['median_context_prep_time'] = np.median(detailed['context_prep_times'])
+            
+            # Максимальные времена
+            stats['max_retrieval_time'] = np.max(detailed['retrieval_times'])
+            stats['max_generation_time'] = np.max(detailed['generation_times'])
+            stats['max_context_prep_time'] = np.max(detailed['context_prep_times'])
+            
+            # Стандартные отклонения
+            stats['std_retrieval_time'] = np.std(detailed['retrieval_times'])
+            stats['std_generation_time'] = np.std(detailed['generation_times'])
+            stats['std_context_prep_time'] = np.std(detailed['context_prep_times'])
+            
+            # Средние количества и длины
+            stats['avg_retrieved_docs'] = np.mean(detailed['retrieved_docs_counts'])
+            stats['avg_context_length'] = np.mean(detailed['context_lengths'])
+            stats['avg_answer_length'] = np.mean(detailed['answer_lengths'])
+            
+            # Процентное распределение времени
+            total_avg_time = stats['avg_retrieval_time'] + stats['avg_generation_time'] + stats['avg_context_prep_time']
+            if total_avg_time > 0:
+                stats['retrieval_time_percentage'] = (stats['avg_retrieval_time'] / total_avg_time) * 100
+                stats['generation_time_percentage'] = (stats['avg_generation_time'] / total_avg_time) * 100
+                stats['context_prep_time_percentage'] = (stats['avg_context_prep_time'] / total_avg_time) * 100
+        
+        return stats
     
     def get_vector_store_info(self) -> Dict[str, Any]:
         """Возвращает информацию о векторной базе."""

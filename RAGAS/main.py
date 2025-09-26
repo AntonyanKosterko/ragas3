@@ -193,6 +193,30 @@ class RAGExperimentRunner:
             if isinstance(stat_value, (int, float)):
                 mlflow.log_metric(f"pipeline_{stat_name}", stat_value)
         
+        # Логируем детальные временные метрики
+        if 'avg_retrieval_time' in pipeline_stats:
+            try:
+                mlflow.log_metric("avg_retrieval_time", float(pipeline_stats['avg_retrieval_time']))
+                mlflow.log_metric("avg_generation_time", float(pipeline_stats['avg_generation_time']))
+                mlflow.log_metric("avg_context_prep_time", float(pipeline_stats['avg_context_prep_time']))
+                mlflow.log_metric("median_retrieval_time", float(pipeline_stats['median_retrieval_time']))
+                mlflow.log_metric("median_generation_time", float(pipeline_stats['median_generation_time']))
+                mlflow.log_metric("median_context_prep_time", float(pipeline_stats['median_context_prep_time']))
+                mlflow.log_metric("max_retrieval_time", float(pipeline_stats['max_retrieval_time']))
+                mlflow.log_metric("max_generation_time", float(pipeline_stats['max_generation_time']))
+                mlflow.log_metric("max_context_prep_time", float(pipeline_stats['max_context_prep_time']))
+                mlflow.log_metric("std_retrieval_time", float(pipeline_stats['std_retrieval_time']))
+                mlflow.log_metric("std_generation_time", float(pipeline_stats['std_generation_time']))
+                mlflow.log_metric("std_context_prep_time", float(pipeline_stats['std_context_prep_time']))
+                mlflow.log_metric("retrieval_time_percentage", float(pipeline_stats['retrieval_time_percentage']))
+                mlflow.log_metric("generation_time_percentage", float(pipeline_stats['generation_time_percentage']))
+                mlflow.log_metric("context_prep_time_percentage", float(pipeline_stats['context_prep_time_percentage']))
+                mlflow.log_metric("avg_retrieved_docs", float(pipeline_stats['avg_retrieved_docs']))
+                mlflow.log_metric("avg_context_length", float(pipeline_stats['avg_context_length']))
+                mlflow.log_metric("avg_answer_length", float(pipeline_stats['avg_answer_length']))
+            except Exception as e:
+                logger.warning(f"Ошибка при логировании детальных метрик: {e}")
+        
         logger.info("Информация о пайплайне залогирована")
     
     def _run_evaluation(self) -> Dict[str, Any]:
