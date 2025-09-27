@@ -5,6 +5,8 @@
 
 import torch
 import logging
+import psutil
+import GPUtil
 from typing import Dict, Any, Optional, Union
 from transformers import (
     AutoTokenizer, 
@@ -48,6 +50,54 @@ class ModelManager:
         
         return device
     
+    def get_gpu_memory_info(self) -> Dict[str, float]:
+        """Получает информацию об использовании GPU памяти."""
+        if not torch.cuda.is_available():
+            return {"gpu_memory_used": 0.0, "gpu_memory_total": 0.0, "gpu_memory_percent": 0.0}
+        
+        try:
+            # Получаем информацию о GPU через torch
+            allocated = torch.cuda.memory_allocated() / 1e9  # GB
+            reserved = torch.cuda.memory_reserved() / 1e9    # GB
+            total = torch.cuda.get_device_properties(0).total_memory / 1e9  # GB
+            
+            # Получаем информацию через GPUtil
+            gpus = GPUtil.getGPUs()
+            if gpus:
+                gpu = gpus[0]
+                gpu_used = gpu.memoryUsed / 1e3  # GB
+                gpu_total = gpu.memoryTotal / 1e3  # GB
+                gpu_percent = gpu.memoryUtil * 100  # %
+            else:
+                gpu_used = allocated
+                gpu_total = total
+                gpu_percent = (allocated / total) * 100
+            
+            return {
+                "gpu_memory_allocated": allocated,
+                "gpu_memory_reserved": reserved,
+                "gpu_memory_total": gpu_total,
+                "gpu_memory_used": gpu_used,
+                "gpu_memory_percent": gpu_percent,
+                "gpu_utilization": gpu.load * 100 if gpus else 0.0
+            }
+        except Exception as e:
+            logger.warning(f"Ошибка при получении информации о GPU: {e}")
+            return {"gpu_memory_used": 0.0, "gpu_memory_total": 0.0, "gpu_memory_percent": 0.0}
+    
+    def log_gpu_memory(self, stage: str = ""):
+        """Логирует текущее использование GPU памяти."""
+        gpu_info = self.get_gpu_memory_info()
+        if gpu_info["gpu_memory_total"] > 0:
+            logger.info(f"GPU Memory {stage}: "
+                       f"Used: {gpu_info['gpu_memory_used']:.2f}GB/"
+                       f"{gpu_info['gpu_memory_total']:.2f}GB "
+                       f"({gpu_info['gpu_memory_percent']:.1f}%), "
+                       f"Allocated: {gpu_info['gpu_memory_allocated']:.2f}GB, "
+                       f"Reserved: {gpu_info['gpu_memory_reserved']:.2f}GB, "
+                       f"Utilization: {gpu_info['gpu_utilization']:.1f}%")
+        return gpu_info
+    
     def load_embedding_model(self) -> HuggingFaceEmbeddings:
         """
         Загружает модель для создания эмбеддингов.
@@ -59,8 +109,13 @@ class ModelManager:
         model_name = embedding_config['name']
         
         logger.info(f"Загрузка модели эмбеддингов: {model_name}")
+        self.log_gpu_memory("до загрузки эмбеддингов")
         
         try:
+            # Очищаем GPU память перед загрузкой
+            if torch.cuda.is_available():
+                torch.cuda.empty_cache()
+            
             # Создаем конфигурацию для модели
             model_kwargs = {
                 'device': self.device
@@ -80,11 +135,15 @@ class ModelManager:
             )
             
             self.embedding_model = embedding_model
+            self.log_gpu_memory("после загрузки эмбеддингов")
             logger.info("Модель эмбеддингов успешно загружена")
             return embedding_model
             
         except Exception as e:
             logger.error(f"Ошибка при загрузке модели эмбеддингов: {e}")
+            # Очищаем память при ошибке
+            if torch.cuda.is_available():
+                torch.cuda.empty_cache()
             raise
     
     def load_generator_model(self) -> BaseLanguageModel:
@@ -98,6 +157,7 @@ class ModelManager:
         model_name = generator_config['name']
         
         logger.info(f"Загрузка генеративной модели: {model_name}")
+        self.log_gpu_memory("до загрузки генеративной модели")
         
         # Проверяем, нужна ли RAG генеративная модель
         if model_name == "rag":
@@ -207,6 +267,7 @@ class ModelManager:
             generator_model = HuggingFacePipeline(pipeline=pipe)
             
             self.generator_model = generator_model
+            self.log_gpu_memory("после загрузки генеративной модели")
             logger.info("Генеративная модель успешно загружена")
             return generator_model
             

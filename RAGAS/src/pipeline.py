@@ -149,25 +149,43 @@ class RAGPipeline:
         total_start_time = time.time()
         
         try:
+            # Проверяем валидность вопроса
+            if not question or len(question.strip()) == 0:
+                raise ValueError("Пустой вопрос")
+            
             # Этап 1: Поиск релевантных документов
             retrieval_start = time.time()
             retriever_config = self.config['retriever']
             k = retriever_config.get('k', 5)
             
-            # Выполняем поиск документов
-            retrieved_docs = self.retriever.get_relevant_documents(question)
+            # Выполняем поиск документов с защитой от ошибок
+            try:
+                retrieved_docs = self.retriever.get_relevant_documents(question)
+                if not retrieved_docs:
+                    retrieved_docs = []
+            except Exception as e:
+                logger.warning(f"Ошибка при поиске документов: {e}")
+                retrieved_docs = []
+            
             timing_metrics['retrieval_time'] = time.time() - retrieval_start
             timing_metrics['retrieved_docs_count'] = len(retrieved_docs)
             
             # Этап 2: Подготовка контекста
             context_start = time.time()
-            context = "\n\n".join([doc.page_content for doc in retrieved_docs])
+            if retrieved_docs:
+                context = "\n\n".join([doc.page_content for doc in retrieved_docs if hasattr(doc, 'page_content')])
+            else:
+                context = "Контекст не найден."
             timing_metrics['context_preparation_time'] = time.time() - context_start
             timing_metrics['context_length'] = len(context)
             
             # Этап 3: Генерация ответа
             generation_start = time.time()
-            result = self.qa_chain.invoke({"query": question})
+            try:
+                result = self.qa_chain.invoke({"query": question})
+            except Exception as e:
+                logger.warning(f"Ошибка при генерации ответа: {e}")
+                result = {"result": f"Ошибка генерации: {str(e)}"}
             timing_metrics['generation_time'] = time.time() - generation_start
             
             # Извлекаем ответ

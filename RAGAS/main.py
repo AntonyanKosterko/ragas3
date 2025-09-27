@@ -217,6 +217,23 @@ class RAGExperimentRunner:
             except Exception as e:
                 logger.warning(f"Ошибка при логировании детальных метрик: {e}")
         
+        # Логируем информацию о GPU памяти
+        try:
+            from src.models import ModelManager
+            model_manager = ModelManager(self.config)
+            gpu_info = model_manager.get_gpu_memory_info()
+            
+            if gpu_info["gpu_memory_total"] > 0:
+                mlflow.log_metric("gpu_memory_used_gb", gpu_info["gpu_memory_used"])
+                mlflow.log_metric("gpu_memory_total_gb", gpu_info["gpu_memory_total"])
+                mlflow.log_metric("gpu_memory_percent", gpu_info["gpu_memory_percent"])
+                mlflow.log_metric("gpu_memory_allocated_gb", gpu_info["gpu_memory_allocated"])
+                mlflow.log_metric("gpu_memory_reserved_gb", gpu_info["gpu_memory_reserved"])
+                mlflow.log_metric("gpu_utilization_percent", gpu_info["gpu_utilization"])
+                logger.info("GPU метрики залогированы в MLflow")
+        except Exception as e:
+            logger.warning(f"Ошибка при логировании GPU метрик: {e}")
+        
         logger.info("Информация о пайплайне залогирована")
     
     def _run_evaluation(self) -> Dict[str, Any]:

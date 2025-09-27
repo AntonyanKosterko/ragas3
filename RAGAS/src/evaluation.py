@@ -167,9 +167,21 @@ class RAGEvaluator:
         # Косинусное сходство
         if 'cosine_similarity' in self.metrics and self.embedding_model:
             try:
-                embeddings = self.embedding_model.encode([predicted, ground_truth])
-                similarity = cosine_similarity([embeddings[0]], [embeddings[1]])[0][0]
-                metrics['cosine_similarity'] = float(similarity)
+                # Проверяем, что строки не пустые и содержат валидный текст
+                if not predicted or not ground_truth or len(predicted.strip()) == 0 or len(ground_truth.strip()) == 0:
+                    metrics['cosine_similarity'] = 0.0
+                else:
+                    # Очищаем строки от специальных символов и ограничиваем длину
+                    clean_predicted = predicted.strip()[:1000]  # Ограничиваем длину
+                    clean_ground_truth = ground_truth.strip()[:1000]
+                    
+                    # Проверяем, что строки содержат хотя бы один символ
+                    if len(clean_predicted) == 0 or len(clean_ground_truth) == 0:
+                        metrics['cosine_similarity'] = 0.0
+                    else:
+                        embeddings = self.embedding_model.encode([clean_predicted, clean_ground_truth])
+                        similarity = cosine_similarity([embeddings[0]], [embeddings[1]])[0][0]
+                        metrics['cosine_similarity'] = float(similarity)
             except Exception as e:
                 logger.warning(f"Ошибка при вычислении косинусного сходства: {e}")
                 metrics['cosine_similarity'] = 0.0

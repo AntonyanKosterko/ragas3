@@ -1,41 +1,41 @@
 # Оптимальная конфигурация для RTX 3090 (24GB VRAM) с сильными моделями
 experiment:
-  name: "rag_gpu_optimal_experiment"
-  description: "RAG система с сильными моделями на RTX 3090 и полным датасетом"
-  tags: ["rag", "gpu", "rtx3090", "strong_models", "full_dataset", "production"]
+  name: "sberquad_Saiga-7B_GPU_10samples_experiment"
+  description: "RAG система с Saiga-7B на GPU, полная переиндексация базы данных, максимальное использование памяти RTX 3090, 10 семплов"
+  tags: ["rag", "gpu", "Saiga-7B", "sberquad", "rtx3090", "max_memory", "full_db", "10_samples", "stable"]
 
-# Настройки данных - используем полный датасет RAG Bench
+# Настройки данных - используем датасет SberQuAD с правильными ответами
 data:
-  input_path: "datasets/rag_bench/documents_for_rag.json"  # Полный датасет документов
-  dataset_path: "datasets/rag_bench/qa_pairs_full.json"  # Все пары вопрос-ответ
-  chunk_size: 2000  # Оптимальный размер чанков
+  input_path: "datasets/sberquad/documents_for_rag.json"  # Документы SberQuAD
+  dataset_path: "datasets/sberquad/qa_pairs.json"  # Правильные пары вопрос-ответ
+  chunk_size: 2000  # Увеличиваем размер чанков для лучшего контекста
   chunk_overlap: 400
   text_splitter: "recursive"
 
 # Настройки датасетов
 datasets:
-  rag_bench:
-    path: "datasets/rag_bench"
+  sberquad:
+    path: "datasets/sberquad"
     documents_file: "documents_for_rag.json"
-    qa_pairs_file: "qa_pairs_full.json"
-    vector_db_path: "datasets/rag_bench/vector_db"
+    qa_pairs_file: "qa_pairs.json"
+    vector_db_path: "datasets/sberquad/vector_db"
 
 # Настройки моделей для RTX 3090 (сильные модели)
 models:
   # Эмбеддинг модель (самая мощная многоязычная)
   embedding:
     name: "sentence-transformers/paraphrase-multilingual-mpnet-base-v2"
-    device: "cuda"
+    device: "cuda"  # Возвращаем на GPU для максимального использования
     normalize_embeddings: true
     
-  # Генеративная модель (сильная многоязычная модель)
+  # Генеративная модель (Saiga-7B для максимального использования GPU)
   generator:
-    name: "microsoft/DialoGPT-small"  # Сильная многоязычная модель
+    name: "IlyaGusev/saiga_llama3_8b"  # Мощная модель Saiga-7B
     device: "cuda"
     torch_dtype: "float16"  # Экономия памяти
-    max_new_tokens: 512
-    temperature: 0.7
-    do_sample: true
+    max_new_tokens: 256  # Увеличиваем для качественных ответов
+    temperature: 0.7  # Оптимальная креативность
+    do_sample: true  # Сэмплирование для качества
     top_p: 0.9
     top_k: 50
     repetition_penalty: 1.1
@@ -43,14 +43,14 @@ models:
 # Настройки векторной базы
 vector_store:
   type: "chroma"
-  persist_directory: "datasets/rag_bench/vector_db"
-  collection_name: "rag_bench_documents"
+  persist_directory: "datasets/sberquad/vector_db"
+  collection_name: "sberquad_documents"
 
 # Настройки ретривера (оптимизированные)
 retriever:
-  k: 10  # Больше документов для лучшего контекста
-  search_type: "similarity"
-  fetch_k: 30
+  k: 10  # Больше документов для полного контекста
+  search_type: "similarity"  # Простой поиск по сходству
+  fetch_k: 50  # Увеличиваем для лучшего покрытия
 
 # Настройки оценки (расширенные метрики)
 evaluation:
@@ -62,9 +62,9 @@ evaluation:
     - "length_ratio"
     - "semantic_similarity"
     - "answer_relevance"
-  batch_size: 2  # Уменьшаем для экономии памяти GPU
+  batch_size: 2  # Увеличиваем для эффективной обработки 100 семплов
   save_predictions: true
-  max_samples: 200  # Оцениваем больше примеров
+  max_samples: 10  # Эксперимент на 10 семплах для быстрого тестирования
 
 # Настройки MLflow
 mlflow:
