@@ -106,13 +106,11 @@ class RAGPipeline:
     def _create_qa_chain(self) -> None:
         """Создает цепочку для вопросов и ответов."""
         # Создаем промпт-шаблон
-        prompt_template = """Используя предоставленный контекст, дайте краткий и точный ответ на вопрос.
-
-Контекст: {context}
+        prompt_template = """Контекст: {context}
 
 Вопрос: {question}
 
-Ответ (кратко и по существу):"""
+Ответь кратко одним словом или короткой фразой:"""
         
         PROMPT = PromptTemplate(
             template=prompt_template,
@@ -188,8 +186,18 @@ class RAGPipeline:
                 result = {"result": f"Ошибка генерации: {str(e)}"}
             timing_metrics['generation_time'] = time.time() - generation_start
             
-            # Извлекаем ответ
-            answer = result.get("result", "")
+            # Извлекаем ответ и очищаем его от промпта
+            full_result = result.get("result", "")
+            
+            # Извлекаем только ответ после "Ответь кратко одним словом или короткой фразой:"
+            answer_prompt = "Ответь кратко одним словом или короткой фразой:"
+            if answer_prompt in full_result:
+                answer = full_result.split(answer_prompt)[-1].strip()
+            else:
+                # Если промпт не найден, берем последнюю строку
+                lines = full_result.strip().split('\n')
+                answer = lines[-1].strip() if lines else full_result
+            
             timing_metrics['answer_length'] = len(answer)
             
             # Извлекаем исходные документы

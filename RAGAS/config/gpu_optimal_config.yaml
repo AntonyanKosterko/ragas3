@@ -1,8 +1,8 @@
 # Оптимальная конфигурация для RTX 3090 (24GB VRAM) с сильными моделями
 experiment:
-  name: "sberquad_Saiga-7B_GPU_10samples_experiment"
-  description: "RAG система с Saiga-7B на GPU, полная переиндексация базы данных, максимальное использование памяти RTX 3090, 10 семплов"
-  tags: ["rag", "gpu", "Saiga-7B", "sberquad", "rtx3090", "max_memory", "full_db", "10_samples", "stable"]
+  name: "sberquad_Saiga-7B_GPU_FIXED_metrics_experiment"
+  description: "RAG система с Saiga-7B на GPU, исправленные метрики, извлечение только ответа, 10 семплов"
+  tags: ["rag", "gpu", "Saiga-7B", "sberquad", "rtx3090", "fixed_metrics", "answer_extraction", "10_samples"]
 
 # Настройки данных - используем датасет SberQuAD с правильными ответами
 data:
@@ -33,9 +33,9 @@ models:
     name: "IlyaGusev/saiga_llama3_8b"  # Мощная модель Saiga-7B
     device: "cuda"
     torch_dtype: "float16"  # Экономия памяти
-    max_new_tokens: 256  # Увеличиваем для качественных ответов
+    max_new_tokens: 30  # Очень короткие ответы
     temperature: 0.7  # Оптимальная креативность
-    do_sample: true  # Сэмплирование для качества
+    do_sample: false  # Детерминированные ответы
     top_p: 0.9
     top_k: 50
     repetition_penalty: 1.1
