@@ -105,12 +105,23 @@ class RAGPipeline:
     
     def _create_qa_chain(self) -> None:
         """Создает цепочку для вопросов и ответов."""
-        # Создаем промпт-шаблон
-        prompt_template = """Контекст: {context}
+        # Создаем модернизированный промпт-шаблон
+        prompt_template = """Ты - эксперт по анализу текстов. Твоя задача: найти точный ответ на вопрос, используя предоставленный контекст.
 
-Вопрос: {question}
+КОНТЕКСТ:
+{context}
 
-Ответь кратко одним словом или короткой фразой:"""
+ВОПРОС:
+{question}
+
+ИНСТРУКЦИИ:
+1. Проанализируй контекст и найди информацию, которая отвечает на вопрос
+2. Дай ТОЧНЫЙ ответ одним словом или короткой фразой
+3. Используй ТОЛЬКО информацию из контекста
+4. НЕ добавляй объяснения, примеры или дополнительную информацию
+5. Если ответ содержит несколько элементов, перечисли их через запятую
+
+ОТВЕТ:"""
         
         PROMPT = PromptTemplate(
             template=prompt_template,
@@ -197,6 +208,9 @@ class RAGPipeline:
                 # Если промпт не найден, берем последнюю строку
                 lines = full_result.strip().split('\n')
                 answer = lines[-1].strip() if lines else full_result
+            
+            # Дополнительная очистка ответа для улучшения BLEU
+            answer = self._clean_answer(answer)
             
             timing_metrics['answer_length'] = len(answer)
             
@@ -399,6 +413,73 @@ class RAGPipeline:
             'avg_response_time': 0.0
         }
         logger.info("Статистика сброшена")
+    
+    def _clean_answer(self, answer: str) -> str:
+        """
+        Очищает ответ от лишних символов и текста для улучшения метрик.
+        
+        Args:
+            answer: Исходный ответ
+            
+        Returns:
+            str: Очищенный ответ
+        """
+        if not answer:
+            return ""
+        
+        # Убираем кавычки в начале и конце
+        answer = answer.strip('"\'')
+        
+        # Убираем лишние символы форматирования
+        answer = answer.replace('---', '').replace('### Ответ', '').replace('###', '')
+        
+        # Разбиваем на строки и берем только первую значимую строку
+        lines = [line.strip() for line in answer.split('\n') if line.strip()]
+        
+        if not lines:
+            return ""
+        
+        # Берем первую строку, которая не является служебной
+        first_line = lines[0]
+        
+        # Убираем служебные фразы (обновленная логика для нового промпта)
+        stop_phrases = [
+            "ОТВЕТ:",
+            "Ответ:",
+            "Ответь ТОЛЬКО одним словом или короткой фразой, без дополнительных объяснений:",
+            "Ответь кратко одним словом или короткой фразой:",
+            "Вопрос:", "Используйте информацию", "Контекст:", 
+            "Ответь кратко", "один словом", "короткой фразой",
+            "Ты - эксперт по анализу текстов", "ИНСТРУКЦИИ:", "КОНТЕКСТ:", "ВОПРОС:"
+        ]
+        
+        # Ищем и удаляем служебные фразы
+        for phrase in stop_phrases:
+            if phrase in first_line:
+                # Берем текст после служебной фразы
+                parts = first_line.split(phrase)
+                if len(parts) > 1:
+                    first_line = parts[1].strip()
+                else:
+                    # Если фраза в конце, берем текст до неё
+                    first_line = parts[0].strip()
+                break
+        
+        # Если ответ слишком короткий (меньше 2 символов), пробуем следующую строку
+        if len(first_line) < 2 and len(lines) > 1:
+            for line in lines[1:]:
+                if len(line.strip()) >= 2:
+                    first_line = line.strip()
+                    break
+        
+        # Ограничиваем длину ответа (максимум 200 символов)
+        if len(first_line) > 200:
+            first_line = first_line[:200].strip()
+        
+        # Убираем лишние пробелы и переносы строк
+        first_line = ' '.join(first_line.split())
+        
+        return first_line
 
 
 def create_rag_pipeline(config: Dict[str, Any]) -> RAGPipeline:

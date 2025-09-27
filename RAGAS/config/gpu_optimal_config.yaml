@@ -1,8 +1,8 @@
 # Оптимальная конфигурация для RTX 3090 (24GB VRAM) с сильными моделями
 experiment:
-  name: "sberquad_Saiga-7B_GPU_FIXED_metrics_experiment"
-  description: "RAG система с Saiga-7B на GPU, исправленные метрики, извлечение только ответа, 10 семплов"
-  tags: ["rag", "gpu", "Saiga-7B", "sberquad", "rtx3090", "fixed_metrics", "answer_extraction", "10_samples"]
+  name: "sberquad_Saiga-7B_GPU_GROUPED_metrics_experiment"
+  description: "RAG система с Saiga-7B на GPU, группированные метрики: классические + RAG-специфичные, 100 семплов"
+  tags: ["rag", "gpu", "Saiga-7B", "sberquad", "rtx3090", "grouped_metrics", "bleu_rouge_rag", "100_samples"]
 
 # Настройки данных - используем датасет SberQuAD с правильными ответами
 data:
@@ -55,16 +55,26 @@ retriever:
 # Настройки оценки (расширенные метрики)
 evaluation:
   metrics:
-    - "cosine_similarity"
-    - "rouge"
-    - "bleu"
-    - "exact_match"
-    - "length_ratio"
-    - "semantic_similarity"
-    - "answer_relevance"
+    # === ГРУППА 1: КЛАССИЧЕСКИЕ МЕТРИКИ ГЕНЕРАЦИИ ===
+    - "rouge"              # ROUGE метрики (для сравнения)
+    - "bleu"               # BLEU метрика (для сравнения)
+    - "exact_match"        # Точное совпадение
+    
+    # === ГРУППА 2: СЕМАНТИЧЕСКИЕ МЕТРИКИ ===
+    - "cosine_similarity"  # Семантическое сходство - основная метрика
+    
+    # === ГРУППА 3: RAG-СПЕЦИФИЧНЫЕ МЕТРИКИ ===
+    - "keyword_overlap"    # Процент совпадающих ключевых слов
+    - "contains_ground_truth"  # Содержит ли ответ эталон
+    - "partial_match"      # Частичное совпадение
+    - "answer_completeness"  # Полнота ответа
+    - "information_density"  # Плотность информации
+    
+    # === ГРУППА 4: ТЕХНИЧЕСКИЕ МЕТРИКИ ===
+    - "length_ratio"       # Соотношение длин
   batch_size: 2  # Увеличиваем для эффективной обработки 100 семплов
   save_predictions: true
-  max_samples: 10  # Эксперимент на 10 семплах для быстрого тестирования
+  max_samples: 100  # Эксперимент с группированными метриками на 100 семплах
 
 # Настройки MLflow
 mlflow:

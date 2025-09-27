@@ -216,7 +216,53 @@ class RAGEvaluator:
         metrics['length_ratio'] = len(predicted) / max(len(ground_truth), 1)
         metrics['exact_match'] = 1.0 if predicted.strip().lower() == ground_truth.strip().lower() else 0.0
         
+        # Новые RAG-специфичные метрики
+        metrics.update(self._compute_rag_metrics(predicted, ground_truth))
+        
         return metrics
+    
+    def _compute_rag_metrics(self, predicted: str, ground_truth: str) -> Dict[str, float]:
+        """
+        Вычисляет RAG-специфичные метрики.
+        
+        Args:
+            predicted: Предсказанный ответ
+            ground_truth: Эталонный ответ
+            
+        Returns:
+            Dict[str, float]: RAG-специфичные метрики
+        """
+        rag_metrics = {}
+        
+        # 1. Keyword Overlap - процент совпадающих ключевых слов
+        predicted_words = set(predicted.lower().split())
+        ground_truth_words = set(ground_truth.lower().split())
+        
+        if len(ground_truth_words) > 0:
+            overlap = len(predicted_words.intersection(ground_truth_words))
+            rag_metrics['keyword_overlap'] = overlap / len(ground_truth_words)
+        else:
+            rag_metrics['keyword_overlap'] = 0.0
+        
+        # 2. Answer Contains Ground Truth - содержит ли ответ эталон
+        rag_metrics['contains_ground_truth'] = 1.0 if ground_truth.lower() in predicted.lower() else 0.0
+        
+        # 3. Ground Truth Contains Answer - содержится ли ответ в эталоне
+        rag_metrics['ground_truth_contains_answer'] = 1.0 if predicted.lower() in ground_truth.lower() else 0.0
+        
+        # 4. Partial Match - частичное совпадение (если есть хотя бы одно общее слово)
+        rag_metrics['partial_match'] = 1.0 if len(predicted_words.intersection(ground_truth_words)) > 0 else 0.0
+        
+        # 5. Answer Completeness - насколько полный ответ (отношение длины к эталону)
+        if len(ground_truth) > 0:
+            rag_metrics['answer_completeness'] = min(len(predicted) / len(ground_truth), 1.0)
+        else:
+            rag_metrics['answer_completeness'] = 0.0
+        
+        # 6. Information Density - плотность информации (количество уникальных слов)
+        rag_metrics['information_density'] = len(set(predicted.lower().split())) / max(len(predicted.split()), 1)
+        
+        return rag_metrics
     
     def _aggregate_metrics(self, predictions: List[Dict[str, Any]]) -> Dict[str, float]:
         """

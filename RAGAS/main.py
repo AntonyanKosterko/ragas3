@@ -260,18 +260,39 @@ class RAGExperimentRunner:
         return evaluation_results
     
     def _log_evaluation_metrics(self, evaluation_results: Dict[str, Any]) -> None:
-        """Логирует метрики оценки в MLflow."""
+        """Логирует метрики оценки в MLflow с группировкой."""
         metrics = evaluation_results.get('metrics', {})
         
+        # Определяем группы метрик для визуального разделения
+        metric_groups = {
+            "01_classical_generation": ["rouge1", "rouge2", "rougeL", "bleu", "exact_match"],
+            "02_semantic": ["cosine_similarity"],
+            "03_rag_specific": ["keyword_overlap", "contains_ground_truth", "partial_match", 
+                               "answer_completeness", "information_density"],
+            "04_technical": ["length_ratio", "response_time", "retrieval_time", "generation_time"]
+        }
+        
+        # Логируем метрики по группам
+        for group_name, group_metrics in metric_groups.items():
+            for metric_name, metric_value in metrics.items():
+                if metric_name in group_metrics and isinstance(metric_value, (int, float)):
+                    # Добавляем префикс группы для визуального разделения
+                    grouped_metric_name = f"{group_name}_{metric_name}"
+                    mlflow.log_metric(grouped_metric_name, metric_value)
+        
+        # Логируем метрики, которые не попали в группы
         for metric_name, metric_value in metrics.items():
             if isinstance(metric_value, (int, float)):
-                mlflow.log_metric(metric_name, metric_value)
+                # Проверяем, не логировали ли мы уже эту метрику в группах
+                already_logged = any(metric_name in group_metrics for group_metrics in metric_groups.values())
+                if not already_logged:
+                    mlflow.log_metric(f"05_other_{metric_name}", metric_value)
         
         # Логируем общие метрики
-        mlflow.log_metric("total_samples", evaluation_results['total_samples'])
-        mlflow.log_metric("evaluation_time", evaluation_results['evaluation_time'])
+        mlflow.log_metric("00_general_total_samples", evaluation_results['total_samples'])
+        mlflow.log_metric("00_general_evaluation_time", evaluation_results['evaluation_time'])
         
-        logger.info("Метрики оценки залогированы в MLflow")
+        logger.info("Метрики оценки залогированы в MLflow с группировкой")
     
     def _run_test_queries(self) -> Dict[str, Any]:
         """Запускает тестовые запросы к системе."""
