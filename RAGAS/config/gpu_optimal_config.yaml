@@ -70,7 +70,17 @@ evaluation:
     - "answer_completeness"  # Полнота ответа
     - "information_density"  # Плотность информации
     
-    # === ГРУППА 4: ТЕХНИЧЕСКИЕ МЕТРИКИ ===
+    # === ГРУППА 4: МЕТРИКИ РЕТРИВЕРА ===
+    - "retriever_precision"      # Точность ретривера (Precision@K)
+    - "retriever_recall"         # Полнота ретривера (Recall@K)
+    - "retriever_f1"            # F1-мера ретривера
+    - "retriever_hit_rate"      # Hit Rate@K
+    - "retriever_mrr"           # Mean Reciprocal Rank
+    - "retriever_ndcg"          # Normalized DCG
+    - "retriever_coverage"      # Покрытие релевантных документов
+    - "retriever_diversity"     # Разнообразие извлеченных документов
+    
+    # === ГРУППА 5: ТЕХНИЧЕСКИЕ МЕТРИКИ ===
     - "length_ratio"       # Соотношение длин
   batch_size: 2  # Увеличиваем для эффективной обработки 100 семплов
   save_predictions: true

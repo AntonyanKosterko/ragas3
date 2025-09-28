@@ -103,3 +103,8 @@ python run_cpu.py --config optimized --mode experiment
 2. Попробуйте другой порт в конфигурации
 3. Используйте `--interface streamlit` вместо gradio
 
+
+
+
+
+

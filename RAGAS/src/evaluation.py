@@ -106,20 +106,27 @@ class RAGEvaluator:
             
             question = sample['question']
             ground_truth = sample['answer']
+            ground_truth_doc_ids = sample.get('context_doc_ids', [])
             
             # Получаем ответ от пайплайна
             try:
                 response = pipeline.query(question, return_sources=True)
                 predicted_answer = response['answer']
                 response_time = response['response_time']
+                retrieved_docs = response.get('source_documents', [])
             except Exception as e:
                 logger.warning(f"Ошибка при обработке вопроса {i+1}: {e}")
                 predicted_answer = ""
                 response_time = 0
+                retrieved_docs = []
             
-            # Вычисляем метрики
+            # Вычисляем метрики генерации
             sample_metrics = self._compute_metrics(predicted_answer, ground_truth)
             sample_metrics['response_time'] = response_time
+            
+            # Вычисляем метрики ретривера
+            retriever_metrics = self._compute_retriever_metrics(retrieved_docs, ground_truth_doc_ids)
+            sample_metrics.update(retriever_metrics)
             
             # Добавляем детальные временные метрики
             if 'timing_metrics' in response:
@@ -133,11 +140,26 @@ class RAGEvaluator:
                     'answer_length': timing_metrics.get('answer_length', 0)
                 })
             
+            # Извлекаем ID извлеченных документов для сохранения
+            retrieved_doc_ids_for_save = []
+            for doc in retrieved_docs:
+                doc_id = None
+                if isinstance(doc, dict):
+                    metadata = doc.get('metadata', {})
+                    doc_id = metadata.get('id') or metadata.get('doc_id') or doc.get('id')
+                elif hasattr(doc, 'metadata'):
+                    metadata = doc.metadata if hasattr(doc, 'metadata') else {}
+                    doc_id = metadata.get('id') or metadata.get('doc_id')
+                if doc_id:
+                    retrieved_doc_ids_for_save.append(doc_id)
+            
             # Сохраняем предсказание
             prediction = {
                 'question': question,
                 'ground_truth': ground_truth,
                 'predicted': predicted_answer,
+                'ground_truth_doc_ids': ground_truth_doc_ids,
+                'retrieved_doc_ids': retrieved_doc_ids_for_save,
                 'metrics': sample_metrics,
                 'sample_id': i
             }
@@ -264,6 +286,110 @@ class RAGEvaluator:
         
         return rag_metrics
     
+    def _compute_retriever_metrics(self, retrieved_docs: List[Dict[str, Any]], 
+                                 ground_truth_doc_ids: List[str]) -> Dict[str, float]:
+        """
+        Вычисляет метрики для оценки качества ретривера.
+        
+        Args:
+            retrieved_docs: Список извлеченных документов
+            ground_truth_doc_ids: Список ID релевантных документов (ground truth)
+            
+        Returns:
+            Dict[str, float]: Метрики ретривера
+        """
+        retriever_metrics = {}
+        
+        if not retrieved_docs or not ground_truth_doc_ids:
+            return {
+                'retriever_precision': 0.0,
+                'retriever_recall': 0.0,
+                'retriever_f1': 0.0,
+                'retriever_hit_rate': 0.0,
+                'retriever_mrr': 0.0,
+                'retriever_ndcg': 0.0,
+                'retriever_coverage': 0.0,
+                'retriever_diversity': 0.0
+            }
+        
+        # Получаем ID извлеченных документов
+        retrieved_doc_ids = []
+        for doc in retrieved_docs:
+            # Проверяем разные варианты ID в метаданных
+            doc_id = None
+            if isinstance(doc, dict):
+                # Если это словарь с метаданными
+                metadata = doc.get('metadata', {})
+                doc_id = metadata.get('id') or metadata.get('doc_id') or doc.get('id')
+            elif hasattr(doc, 'metadata'):
+                # Если это объект документа
+                metadata = doc.metadata if hasattr(doc, 'metadata') else {}
+                doc_id = metadata.get('id') or metadata.get('doc_id')
+            
+            if doc_id:
+                retrieved_doc_ids.append(doc_id)
+        
+        # 1. Precision@K - точность ретривера
+        if len(retrieved_doc_ids) > 0:
+            relevant_retrieved = len(set(retrieved_doc_ids).intersection(set(ground_truth_doc_ids)))
+            retriever_metrics['retriever_precision'] = relevant_retrieved / len(retrieved_doc_ids)
+        else:
+            retriever_metrics['retriever_precision'] = 0.0
+        
+        # 2. Recall@K - полнота ретривера
+        if len(ground_truth_doc_ids) > 0:
+            relevant_retrieved = len(set(retrieved_doc_ids).intersection(set(ground_truth_doc_ids)))
+            retriever_metrics['retriever_recall'] = relevant_retrieved / len(ground_truth_doc_ids)
+        else:
+            retriever_metrics['retriever_recall'] = 0.0
+        
+        # 3. F1@K - гармоническое среднее precision и recall
+        precision = retriever_metrics['retriever_precision']
+        recall = retriever_metrics['retriever_recall']
+        if precision + recall > 0:
+            retriever_metrics['retriever_f1'] = 2 * (precision * recall) / (precision + recall)
+        else:
+            retriever_metrics['retriever_f1'] = 0.0
+        
+        # 4. Hit Rate@K - есть ли хотя бы один релевантный документ
+        retriever_metrics['retriever_hit_rate'] = 1.0 if len(set(retrieved_doc_ids).intersection(set(ground_truth_doc_ids))) > 0 else 0.0
+        
+        # 5. MRR (Mean Reciprocal Rank) - средний обратный ранг первого релевантного документа
+        mrr = 0.0
+        for i, doc_id in enumerate(retrieved_doc_ids):
+            if doc_id in ground_truth_doc_ids:
+                mrr = 1.0 / (i + 1)
+                break
+        retriever_metrics['retriever_mrr'] = mrr
+        
+        # 6. NDCG@K (Normalized Discounted Cumulative Gain) - нормализованный дисконтированный кумулятивный выигрыш
+        dcg = 0.0
+        for i, doc_id in enumerate(retrieved_doc_ids):
+            if doc_id in ground_truth_doc_ids:
+                dcg += 1.0 / np.log2(i + 2)  # +2 потому что log2(1) = 0
+        
+        # IDCG (Ideal DCG) - максимально возможный DCG
+        idcg = 0.0
+        for i in range(min(len(ground_truth_doc_ids), len(retrieved_doc_ids))):
+            idcg += 1.0 / np.log2(i + 2)
+        
+        if idcg > 0:
+            retriever_metrics['retriever_ndcg'] = dcg / idcg
+        else:
+            retriever_metrics['retriever_ndcg'] = 0.0
+        
+        # 7. Coverage - покрытие релевантных документов
+        if len(ground_truth_doc_ids) > 0:
+            covered_docs = len(set(retrieved_doc_ids).intersection(set(ground_truth_doc_ids)))
+            retriever_metrics['retriever_coverage'] = covered_docs / len(ground_truth_doc_ids)
+        else:
+            retriever_metrics['retriever_coverage'] = 0.0
+        
+        # 8. Diversity - разнообразие извлеченных документов (количество уникальных документов)
+        retriever_metrics['retriever_diversity'] = len(set(retrieved_doc_ids)) / max(len(retrieved_doc_ids), 1)
+        
+        return retriever_metrics
+    
     def _aggregate_metrics(self, predictions: List[Dict[str, Any]]) -> Dict[str, float]:
         """
         Агрегирует метрики по всем примерам.
@@ -332,6 +458,22 @@ class RAGEvaluator:
         
         # Конвертируем numpy типы
         results_converted = convert_numpy_types(results)
+        
+        # Дополнительная конвертация для int64 и других типов
+        def convert_types(obj):
+            if isinstance(obj, np.integer):
+                return int(obj)
+            elif isinstance(obj, np.floating):
+                return float(obj)
+            elif isinstance(obj, np.ndarray):
+                return obj.tolist()
+            elif isinstance(obj, dict):
+                return {key: convert_types(value) for key, value in obj.items()}
+            elif isinstance(obj, list):
+                return [convert_types(item) for item in obj]
+            return obj
+        
+        results_converted = convert_types(results_converted)
         
         with open(output_path, 'w', encoding='utf-8') as f:
             json.dump(results_converted, f, ensure_ascii=False, indent=2)

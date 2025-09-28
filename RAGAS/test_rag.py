@@ -18,6 +18,7 @@ sys.path.append(os.path.join(os.path.dirname(__file__), 'src'))
 from src.pipeline import create_rag_pipeline
 from src.dataset_loader import create_dataset_loader
 from src.rag_tester import create_rag_tester
+from src.evaluation import RAGEvaluator
 
 # Настройка логирования
 logging.basicConfig(
@@ -38,6 +39,7 @@ def test_rag_system(config_path: str, max_samples: int = None, rebuild_vector_db
     # Создаем компоненты
     dataset_loader = create_dataset_loader(config)
     rag_tester = create_rag_tester(config)
+    evaluator = RAGEvaluator(config)
     
     # Получаем информацию о датасете
     datasets_config = config.get('datasets', {})
@@ -109,16 +111,20 @@ def test_rag_system(config_path: str, max_samples: int = None, rebuild_vector_db
     
     logger.info(f"Начало тестирования на {len(qa_pairs)} примерах")
     
-    # Запускаем тестирование
-    results = rag_tester.test_rag_system(pipeline, qa_pairs)
+    # Запускаем тестирование с новым оценщиком
+    results = evaluator.evaluate_pipeline(pipeline, qa_pairs)
     
     # Выводим результаты
     print("\n" + "="*60)
     print("📊 РЕЗУЛЬТАТЫ ТЕСТИРОВАНИЯ RAG СИСТЕМЫ")
     print("="*60)
-    print(f"Всего примеров: {len(qa_pairs)}")
-    print(f"Время выполнения: {results['total_time']:.2f} сек")
-    print(f"Среднее время ответа: {results['avg_response_time']:.3f} сек")
+    print(f"Всего примеров: {results['total_samples']}")
+    print(f"Время выполнения: {results['evaluation_time']:.2f} сек")
+    
+    # Вычисляем среднее время ответа
+    response_times = [pred['metrics'].get('response_time', 0) for pred in results['predictions']]
+    avg_response_time = sum(response_times) / len(response_times) if response_times else 0
+    print(f"Среднее время ответа: {avg_response_time:.3f} сек")
     
     print("\nМетрики качества:")
     for metric, value in results['metrics'].items():
@@ -140,10 +146,10 @@ def test_rag_system(config_path: str, max_samples: int = None, rebuild_vector_db
         with mlflow.start_run():
             # Логируем параметры
             mlflow.log_params({
-                'total_queries': len(qa_pairs),
+                'total_queries': results['total_samples'],
                 'dataset_name': dataset_name,
                 'config_path': config_path,
-                'max_samples': max_samples or len(qa_pairs)
+                'max_samples': max_samples or results['total_samples']
             })
             
             # Логируем метрики
@@ -163,9 +169,26 @@ def test_rag_system(config_path: str, max_samples: int = None, rebuild_vector_db
     # Сохраняем результаты
     os.makedirs("results", exist_ok=True)
     import json
+    import numpy as np
+    
+    # Функция для конвертации numpy типов
+    def convert_numpy_types(obj):
+        if isinstance(obj, np.integer):
+            return int(obj)
+        elif isinstance(obj, np.floating):
+            return float(obj)
+        elif isinstance(obj, np.ndarray):
+            return obj.tolist()
+        elif isinstance(obj, dict):
+            return {key: convert_numpy_types(value) for key, value in obj.items()}
+        elif isinstance(obj, list):
+            return [convert_numpy_types(item) for item in obj]
+        return obj
+    
+    results_converted = convert_numpy_types(results)
     results_file = "results/rag_test_results.json"
     with open(results_file, 'w', encoding='utf-8') as f:
-        json.dump(results, f, ensure_ascii=False, indent=2)
+        json.dump(results_converted, f, ensure_ascii=False, indent=2)
     
     logger.info(f"Результаты сохранены в {results_file}")
     logger.info("✅ Тестирование завершено!")
@@ -200,4 +223,9 @@ def main():
 
 if __name__ == "__main__":
     main()
+
+
+
+
+
 
