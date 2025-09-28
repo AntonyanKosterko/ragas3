@@ -27,7 +27,7 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 
-def test_rag_system(config_path: str, max_samples: int = None, rebuild_vector_db: bool = False):
+def test_rag_system(config_path: str, max_samples: int = None, rebuild_vector_db: bool = False, no_mlflow_logging: bool = False):
     """Тестирует RAG систему на датасете SberQuAD"""
     logger.info("🚀 Запуск тестирования RAG системы с датасетом SberQuAD")
     
@@ -133,38 +133,40 @@ def test_rag_system(config_path: str, max_samples: int = None, rebuild_vector_db
         else:
             print(f"  {metric}: {value}")
     
-    # Логируем в MLflow
-    try:
-        import mlflow
-        import mlflow.sklearn
-        
-        mlflow_config = config.get('mlflow', {})
-        experiment_name = mlflow_config.get('experiment_name', 'RAG_SberQuAD_Testing')
-        
-        mlflow.set_experiment(experiment_name)
-        
-        with mlflow.start_run():
-            # Логируем параметры
-            mlflow.log_params({
-                'total_queries': results['total_samples'],
-                'dataset_name': dataset_name,
-                'config_path': config_path,
-                'max_samples': max_samples or results['total_samples']
-            })
+    # Логируем в MLflow (если не отключено)
+    if not no_mlflow_logging:
+        try:
+            import mlflow
+            import mlflow.sklearn
             
-            # Логируем метрики
-            for metric, value in results['metrics'].items():
-                if isinstance(value, (int, float)):
-                    mlflow.log_metric(metric, value)
+            mlflow_config = config.get('mlflow', {})
+            experiment_name = mlflow_config.get('experiment_name', 'RAG_SberQuAD_Testing')
             
-            # Логируем артефакты
-            if os.path.exists("results/rag_test_results.json"):
-                mlflow.log_artifact("results/rag_test_results.json")
-        
-        logger.info("Результаты успешно залогированы в MLflow")
-        
-    except Exception as e:
-        logger.error(f"Ошибка при логировании в MLflow: {e}")
+            mlflow.set_experiment(experiment_name)
+            
+            with mlflow.start_run():
+                # Логируем параметры
+                mlflow.log_params({
+                    'total_queries': results['total_samples'],
+                    'dataset_name': dataset_name,
+                    'config_path': config_path,
+                    'max_samples': max_samples or results['total_samples']
+                })
+                
+                # Логируем метрики
+                for metric, value in results['metrics'].items():
+                    if isinstance(value, (int, float)):
+                        mlflow.log_metric(metric, value)
+                
+                # Логируем артефакты
+                if os.path.exists("results/rag_test_results.json"):
+                    mlflow.log_artifact("results/rag_test_results.json")
+            
+            logger.info("Результаты успешно залогированы в MLflow")
+        except Exception as e:
+            logger.warning(f"Ошибка при логировании в MLflow: {e}")
+    else:
+        logger.info("MLflow логирование отключено")
     
     # Сохраняем результаты
     os.makedirs("results", exist_ok=True)
@@ -205,11 +207,13 @@ def main():
                        help='Максимальное количество примеров для тестирования')
     parser.add_argument('--rebuild-vector-db', action='store_true',
                        help='Пересоздать векторную БД из датасета')
+    parser.add_argument('--no-mlflow-logging', action='store_true',
+                       help='Отключить логирование в MLflow')
     
     args = parser.parse_args()
     
     try:
-        results = test_rag_system(args.config, args.max_samples, args.rebuild_vector_db)
+        results = test_rag_system(args.config, args.max_samples, args.rebuild_vector_db, args.no_mlflow_logging)
         
         if results:
             print(f"\n✅ Тестирование завершено успешно!")

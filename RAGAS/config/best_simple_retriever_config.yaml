@@ -1,0 +1,77 @@
+data:
+  dataset_path: datasets/sberquad/qa_pairs.json
+  input_path: datasets/sberquad/documents_for_rag.json
+datasets:
+  sberquad:
+    documents_file: documents_for_rag.json
+    path: datasets/sberquad
+    qa_pairs_file: qa_pairs.json
+    vector_db_path: datasets/sberquad/vector_db
+evaluation:
+  metrics:
+  - cosine_similarity
+  - rouge1
+  - rouge2
+  - rougeL
+  - length_ratio
+  - exact_match
+  - keyword_overlap
+  - contains_ground_truth
+  - ground_truth_contains_answer
+  - partial_match
+  - answer_completeness
+  - information_density
+  - response_time
+  - retrieval_time
+  - generation_time
+  - context_preparation_time
+  - retrieved_docs_count
+  - context_length
+  - answer_length
+  - retriever_precision
+  - retriever_recall
+  - retriever_f1
+  - retriever_hit_rate
+  - retriever_mrr
+  - retriever_ndcg
+  - retriever_coverage
+  - retriever_diversity
+hybrid_search:
+  bm25_b: 0.75
+  bm25_k: 16
+  bm25_k1: 1.2000000000000002
+  bm25_weight: 0.6
+  final_k: 6
+  normalize_scores: true
+  rerank: true
+  semantic_k: 8
+  semantic_weight: 0.4
+logging:
+  console: true
+  file: logs/rag_hybrid_cpu.log
+  level: INFO
+mlflow:
+  experiment_name: RAG_Hybrid_CPU_Experiment
+  log_artifacts: true
+  log_models: false
+  tracking_uri: file:./mlruns
+models:
+  embedding:
+    device: cpu
+    name: sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2
+    normalize_embeddings: true
+  generator:
+    device: cpu
+    do_sample: true
+    max_new_tokens: 150
+    name: rag
+    temperature: 0.7
+retriever:
+  k: 6
+  search_type: hybrid
+text_splitter:
+  chunk_overlap: 80
+  chunk_size: 300
+vector_store:
+  persist_directory: datasets/sberquad/vector_db
+  type: faiss
