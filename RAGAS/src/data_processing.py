@@ -294,7 +294,7 @@ class DataProcessor:
         Создает ретривер для поиска релевантных документов.
         
         Args:
-            search_type: Тип поиска (similarity, mmr)
+            search_type: Тип поиска (similarity, mmr, hybrid)
             
         Returns:
             Retriever для поиска документов
@@ -319,12 +319,90 @@ class DataProcessor:
                 search_type="similarity",
                 search_kwargs={"k": k}
             )
+        elif search_type == "hybrid":
+            # Гибридный поиск
+            try:
+                from .hybrid_retriever import create_hybrid_retriever
+                
+                # Получаем документы для BM25
+                documents = self._get_documents_for_bm25()
+                
+                # Получаем модель эмбеддингов
+                embedding_model = self._get_embedding_model()
+                
+                # Создаем гибридный ретривер
+                retriever = create_hybrid_retriever(
+                    self.vector_store, 
+                    documents, 
+                    self.config, 
+                    embedding_model
+                )
+                logger.info("Гибридный ретривер создан успешно")
+                
+            except ImportError as e:
+                logger.error(f"Ошибка импорта гибридного ретривера: {e}")
+                logger.warning("Fallback к similarity поиску")
+                retriever = self.vector_store.as_retriever(
+                    search_type="similarity",
+                    search_kwargs={"k": k}
+                )
+            except Exception as e:
+                logger.error(f"Ошибка создания гибридного ретривера: {e}")
+                logger.warning("Fallback к similarity поиску")
+                retriever = self.vector_store.as_retriever(
+                    search_type="similarity",
+                    search_kwargs={"k": k}
+                )
         else:
             raise ValueError(f"Неподдерживаемый тип поиска: {search_type}")
         
         self.retriever = retriever
         logger.info("Ретривер успешно создан")
         return retriever
+    
+    def _get_documents_for_bm25(self) -> List[Document]:
+        """Получает документы для создания BM25 индекса."""
+        try:
+            # Пытаемся получить документы из векторной базы
+            if hasattr(self.vector_store, 'docstore') and hasattr(self.vector_store.docstore, '_dict'):
+                # FAISS
+                documents = list(self.vector_store.docstore._dict.values())
+            elif hasattr(self.vector_store, '_collection'):
+                # ChromaDB
+                documents = []
+                collection = self.vector_store._collection
+                results = collection.get()
+                for i, content in enumerate(results['documents']):
+                    metadata = results['metadatas'][i] if results['metadatas'] else {}
+                    doc = Document(page_content=content, metadata=metadata)
+                    documents.append(doc)
+            else:
+                # Fallback: создаем пустые документы
+                logger.warning("Не удалось получить документы для BM25, создаем пустой список")
+                documents = []
+            
+            logger.info(f"Получено {len(documents)} документов для BM25")
+            return documents
+            
+        except Exception as e:
+            logger.error(f"Ошибка получения документов для BM25: {e}")
+            return []
+    
+    def _get_embedding_model(self):
+        """Получает модель эмбеддингов для гибридного поиска."""
+        try:
+            # Пытаемся получить модель из векторной базы
+            if hasattr(self.vector_store, 'embedding_function'):
+                return self.vector_store.embedding_function
+            else:
+                # Создаем новую модель на основе конфигурации
+                from .models import ModelManager
+                model_manager = ModelManager(self.config)
+                return model_manager.embedding_model
+                
+        except Exception as e:
+            logger.error(f"Ошибка получения модели эмбеддингов: {e}")
+            return None
     
     def load_qa_dataset(self, dataset_path: str) -> List[Dict[str, Any]]:
         """

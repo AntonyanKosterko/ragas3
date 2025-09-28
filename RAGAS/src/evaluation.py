@@ -109,6 +109,7 @@ class RAGEvaluator:
             ground_truth_doc_ids = sample.get('context_doc_ids', [])
             
             # Получаем ответ от пайплайна
+            response = None
             try:
                 response = pipeline.query(question, return_sources=True)
                 predicted_answer = response['answer']
@@ -129,7 +130,7 @@ class RAGEvaluator:
             sample_metrics.update(retriever_metrics)
             
             # Добавляем детальные временные метрики
-            if 'timing_metrics' in response:
+            if response and 'timing_metrics' in response:
                 timing_metrics = response['timing_metrics']
                 sample_metrics.update({
                     'retrieval_time': timing_metrics.get('retrieval_time', 0),

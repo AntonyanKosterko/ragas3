@@ -1,0 +1,114 @@
+# Конфигурация для гибридного поиска на CPU
+# Объединяет семантический поиск и BM25 для лучшего качества
+
+# Настройки данных
+data:
+  input_path: "datasets/sberquad/documents_for_rag.json"
+  dataset_path: "datasets/sberquad/qa_pairs.json"
+
+# Настройки датасетов
+datasets:
+  sberquad:
+    path: "datasets/sberquad"
+    documents_file: "documents_for_rag.json"
+    qa_pairs_file: "qa_pairs.json"
+    vector_db_path: "datasets/sberquad/vector_db"
+
+# Настройки моделей (оптимизированы для CPU)
+models:
+  # Эмбеддинг модель (многоязычная для лучшего качества)
+  embedding:
+    name: "sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2"
+    device: "cpu"
+    normalize_embeddings: true
+    
+  # Генеративная модель (кастомная RAG модель - не требует GPU)
+  generator:
+    name: "rag"
+    device: "cpu"
+    max_new_tokens: 150
+    temperature: 0.7
+    do_sample: true
+
+# Настройки векторной базы (оптимизированы для CPU)
+vector_store:
+  type: "faiss"  # FAISS быстрее на CPU чем ChromaDB
+  persist_directory: "datasets/sberquad/vector_db"
+
+# Настройки текстового сплиттера
+text_splitter:
+  chunk_size: 500  # Оптимальный размер для CPU
+  chunk_overlap: 50  # Небольшое перекрытие для контекста
+
+# Настройки ретривера
+retriever:
+  search_type: "hybrid"  # Гибридный поиск
+  k: 5  # Финальное количество документов
+
+# Настройки гибридного поиска
+hybrid_search:
+  # Веса для комбинирования результатов
+  semantic_weight: 0.7  # Вес семантического поиска (0.0-1.0)
+  bm25_weight: 0.3      # Вес BM25 поиска (0.0-1.0)
+  
+  # Количество документов от каждого метода
+  semantic_k: 10        # Документы от семантического поиска
+  bm25_k: 10           # Документы от BM25 поиска
+  final_k: 5           # Финальное количество документов
+  
+  # Дополнительные настройки
+  rerank: true         # Переранжирование результатов
+  normalize_scores: true  # Нормализация скоров
+  
+  # Параметры BM25
+  bm25_k1: 1.2         # Параметр k1 для BM25 (контролирует частотность терминов)
+  bm25_b: 0.75         # Параметр b для BM25 (контролирует влияние длины документа)
+
+# Настройки оценки
+evaluation:
+  metrics:
+    # === ГРУППА 1: МЕТРИКИ ГЕНЕРАЦИИ ===
+    - "cosine_similarity"     # Косинусное сходство между ответом и эталоном
+    - "rouge1"               # ROUGE-1 (перекрытие униграмм)
+    - "rouge2"               # ROUGE-2 (перекрытие биграмм)
+    - "rougeL"               # ROUGE-L (наибольшая общая подпоследовательность)
+    - "length_ratio"         # Отношение длины ответа к эталону
+    - "exact_match"          # Точное совпадение ответа с эталоном
+    - "keyword_overlap"      # Перекрытие ключевых слов
+    - "contains_ground_truth" # Содержит ли ответ эталонный текст
+    - "ground_truth_contains_answer" # Содержит ли эталон ответ
+    - "partial_match"        # Частичное совпадение
+    - "answer_completeness"  # Полнота ответа
+    - "information_density"  # Информационная плотность
+    - "response_time"        # Время ответа
+    
+    # === ГРУППА 2: МЕТРИКИ ПРОИЗВОДИТЕЛЬНОСТИ ===
+    - "retrieval_time"       # Время поиска документов
+    - "generation_time"      # Время генерации ответа
+    - "context_preparation_time" # Время подготовки контекста
+    - "retrieved_docs_count" # Количество найденных документов
+    - "context_length"       # Длина контекста
+    - "answer_length"        # Длина ответа
+    
+    # === ГРУППА 3: МЕТРИКИ РЕТРИВЕРА ===
+    - "retriever_precision"      # Точность ретривера (Precision@K)
+    - "retriever_recall"         # Полнота ретривера (Recall@K)
+    - "retriever_f1"            # F1-мера ретривера
+    - "retriever_hit_rate"      # Hit Rate@K
+    - "retriever_mrr"           # Mean Reciprocal Rank
+    - "retriever_ndcg"          # Normalized DCG
+    - "retriever_coverage"      # Покрытие релевантных документов
+    - "retriever_diversity"     # Разнообразие извлеченных документов
+
+# Настройки MLflow
+mlflow:
+  experiment_name: "RAG_Hybrid_CPU_Experiment"
+  tracking_uri: "file:./mlruns"
+  log_artifacts: true
+  log_models: false
+
+# Настройки логирования
+logging:
+  level: "INFO"
+  file: "logs/rag_hybrid_cpu.log"
+  console: true

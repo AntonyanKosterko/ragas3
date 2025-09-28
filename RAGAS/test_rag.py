@@ -80,12 +80,11 @@ def test_rag_system(config_path: str, max_samples: int = None, rebuild_vector_db
     logger.info("Загрузка векторной БД...")
     vector_store = dataset_loader.load_vector_store_from_dataset(dataset_path, vector_db_path)
     
-    # Создаем ретривер
-    from langchain_core.retrievers import BaseRetriever
-    retriever = vector_store.as_retriever(
-        search_type=config['retriever']['search_type'],
-        search_kwargs={'k': config['retriever']['k']}
-    )
+    # Создаем ретривер через DataProcessor для поддержки гибридного поиска
+    from src.data_processing import DataProcessor
+    data_processor = DataProcessor(config)
+    data_processor.vector_store = vector_store
+    retriever = data_processor.create_retriever(config['retriever']['search_type'])
     
     # Обновляем пайплайн с новой векторной БД
     pipeline.vector_store = vector_store
