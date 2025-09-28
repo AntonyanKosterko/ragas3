@@ -27,7 +27,7 @@ fi
 # Проверяем, существует ли векторная БД
 if [ ! -d "datasets/sberquad/vector_db" ] || [ ! "$(ls -A datasets/sberquad/vector_db)" ]; then
     echo "🔍 Создание векторной БД..."
-    python test_rag.py --config config/base_config.yaml --rebuild-vector-db --max-samples 100
+    python test_rag.py --config config/cpu_optimized_config.yaml --rebuild-vector-db --max-samples 1
 fi
 
 echo "✅ Подготовка завершена"
@@ -37,4 +37,4 @@ echo "🛑 Для остановки нажмите Ctrl+C"
 echo ""
 
 # Запускаем веб-интерфейс
-python app.py --config config/base_config.yaml --interface gradio
+python app.py --config config/cpu_optimized_config.yaml --interface gradio

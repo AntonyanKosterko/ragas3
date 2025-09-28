@@ -17,7 +17,6 @@ sys.path.append(os.path.join(os.path.dirname(__file__), 'src'))
 
 from src.pipeline import create_rag_pipeline
 from src.dataset_loader import create_dataset_loader
-from src.rag_tester import create_rag_tester
 from src.evaluation import RAGEvaluator
 
 # Настройка логирования
@@ -38,7 +37,6 @@ def test_rag_system(config_path: str, max_samples: int = None, rebuild_vector_db
     
     # Создаем компоненты
     dataset_loader = create_dataset_loader(config)
-    rag_tester = create_rag_tester(config)
     evaluator = RAGEvaluator(config)
     
     # Получаем информацию о датасете
@@ -99,7 +97,10 @@ def test_rag_system(config_path: str, max_samples: int = None, rebuild_vector_db
     # Загружаем пары вопрос-ответ для тестирования
     qa_pairs_path = os.path.join(dataset_path, dataset_config['qa_pairs_file'])
     if os.path.exists(qa_pairs_path):
-        qa_pairs = rag_tester.load_qa_pairs(qa_pairs_path)
+        import json
+        with open(qa_pairs_path, 'r', encoding='utf-8') as f:
+            qa_pairs = json.load(f)
+        logger.info(f"Загружено {len(qa_pairs)} пар вопрос-ответ")
     else:
         logger.error("Файл с парами вопрос-ответ не найден")
         return
