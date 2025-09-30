@@ -112,3 +112,4 @@ logging:
   level: "INFO"
   file: "logs/rag_hybrid_cpu.log"
   console: true
+

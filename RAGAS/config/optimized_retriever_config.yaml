@@ -1,0 +1,113 @@
+# Оптимизированная конфигурация ретривера
+# Основана на результатах гиперпараметрической оптимизации (trial_12)
+# Лучший результат: objective_score = 0.8002
+
+experiment:
+  name: "rag_optimized_retriever"
+  description: "RAG система с оптимизированными параметрами ретривера"
+  tags: ["rag", "russian", "evaluation", "optimized", "hybrid_search"]
+
+# Настройки данных (оптимизированы)
+data:
+  input_path: "datasets/sberquad/documents_for_rag.json"
+  dataset_path: "datasets/sberquad/qa_pairs.json"
+  chunk_size: 300  # Оптимизировано: было 1000
+  chunk_overlap: 80  # Оптимизировано: было 200
+  text_splitter: "recursive"
+  
+# Настройки датасетов
+datasets:
+  sberquad:
+    path: "datasets/sberquad"
+    documents_file: "documents_for_rag.json"
+    qa_pairs_file: "qa_pairs.json"
+    vector_db_path: "datasets/sberquad/vector_db"
+
+# Настройки моделей
+models:
+  # Эмбеддинг модель
+  embedding:
+    name: "all-MiniLM-L6-v2"
+    device: "auto"  # auto, cuda, cpu
+    normalize_embeddings: true
+    
+  # Генеративная модель
+  generator:
+    name: "rag"
+    device: "cpu"  # auto, cuda, cpu
+    max_new_tokens: 100
+    temperature: 0.7
+    do_sample: true
+
+# Настройки векторной базы
+vector_store:
+  type: "faiss"  # chroma, faiss
+  persist_directory: "datasets/sberquad/vector_db"
+  collection_name: "documents"
+
+# Настройки ретривера (оптимизированы на основе trial_12)
+retriever:
+  # Гибридный поиск
+  search_type: "hybrid"  # hybrid, similarity, bm25
+  semantic_weight: 0.4  # Вес семантического поиска (40%)
+  bm25_weight: 0.6  # Вес BM25 поиска (60%)
+  
+  # Параметры поиска
+  semantic_k: 8  # Количество документов для семантического поиска
+  bm25_k: 16  # Количество документов для BM25 поиска
+  final_k: 6  # Финальное количество документов
+  
+  # Параметры BM25
+  bm25_k1: 1.2  # Параметр k1 для BM25
+  bm25_b: 0.75  # Параметр b для BM25
+  
+  # Обратная совместимость
+  k: 6  # количество документов для извлечения (равно final_k)
+  fetch_k: 20  # для MMR
+
+# Настройки оценки
+evaluation:
+  metrics:
+    - "cosine_similarity"
+    - "rouge"
+    - "bleu"
+  batch_size: 8
+  save_predictions: true
+
+# Настройки MLflow
+mlflow:
+  experiment_name: "RAG_Optimized_Retriever_Experiments"
+  tracking_uri: "file:./mlruns"
+  log_artifacts: true
+  log_models: true
+
+# Настройки веб-интерфейса
+web:
+  interface: "gradio"  # gradio, streamlit
+  port: 7860
+  host: "0.0.0.0"
+  share: false
+
+# Настройки логирования
+logging:
+  level: "INFO"
+  format: "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+  file: "logs/rag_optimized_retriever.log"
+
+# Результаты оптимизации
+optimization_results:
+  best_trial: "trial_12"
+  objective_score: 0.8002
+  metrics:
+    mrr: 0.9383
+    precision: 0.1650
+    recall: 0.9900
+    ndcg: 0.9515
+    hit_rate: 0.9900
+    retrieval_time: 0.0326
+    quality_score: 0.8005
+  optimization_date: "2024-09-28"
+  samples_used: 100
+  total_trials: 17
+  experiment_id: "328052029196781072"
+
