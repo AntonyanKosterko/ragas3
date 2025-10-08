@@ -21,6 +21,8 @@ from langchain_core.documents import Document
 from langchain_community.vectorstores import Chroma, FAISS
 from langchain_community.embeddings import HuggingFaceEmbeddings
 from langchain_core.retrievers import BaseRetriever
+import faiss
+import numpy as np
 # MMRRetriever может быть недоступен в некоторых версиях
 # from langchain_community.retrievers.mmr import MMRRetriever
 import chromadb
@@ -227,10 +229,41 @@ class DataProcessor:
                 
             elif store_type == 'faiss':
                 print(f"🔄 Создание векторной базы FAISS из {len(chunks)} документов...")
-                vector_store = FAISS.from_documents(
+                
+                # Получаем параметры индекса из конфигурации
+                index_type = vector_store_config.get('index_type', 'IndexFlatIP')
+                nlist = vector_store_config.get('nlist', 100)
+                nprobe = vector_store_config.get('nprobe', 10)
+                M = vector_store_config.get('M', 16)
+                efSearch = vector_store_config.get('efSearch', 200)
+                m = vector_store_config.get('m', 8)
+                use_opq = vector_store_config.get('use_opq', False)
+                use_pca = vector_store_config.get('use_pca', False)
+                
+                print(f"📊 Параметры индекса FAISS:")
+                print(f"   Тип: {index_type}")
+                if nlist: print(f"   nlist: {nlist}")
+                if nprobe: print(f"   nprobe: {nprobe}")
+                if M: print(f"   M: {M}")
+                if efSearch: print(f"   efSearch: {efSearch}")
+                if m: print(f"   m: {m}")
+                print(f"   OPQ: {use_opq}")
+                print(f"   PCA: {use_pca}")
+                
+                # Создаем FAISS индекс с кастомными параметрами
+                vector_store = self._create_faiss_with_custom_index(
                     documents=chunks,
-                    embedding=embedding_model
+                    embedding_model=embedding_model,
+                    index_type=index_type,
+                    nlist=nlist,
+                    nprobe=nprobe,
+                    M=M,
+                    efSearch=efSearch,
+                    m=m,
+                    use_opq=use_opq,
+                    use_pca=use_pca
                 )
+                
                 # Сохраняем FAISS индекс
                 print("💾 Сохранение FAISS индекса...")
                 vector_store.save_local(persist_directory)
@@ -492,6 +525,89 @@ class DataProcessor:
             json.dump(extended_qa, f, ensure_ascii=False, indent=2)
         
         logger.info(f"Пример датасета сохранен в: {output_path}")
+    
+    def _create_faiss_with_custom_index(self, documents: List[Document], embedding_model: HuggingFaceEmbeddings,
+                                      index_type: str, nlist: int = None, nprobe: int = None, 
+                                      M: int = None, efSearch: int = None, m: int = None,
+                                      use_opq: bool = False, use_pca: bool = False) -> FAISS:
+        """
+        Создает FAISS индекс с кастомными параметрами.
+        
+        Args:
+            documents: Список документов
+            embedding_model: Модель для создания эмбеддингов
+            index_type: Тип индекса FAISS
+            nlist: Количество кластеров для IVF
+            nprobe: Количество проверяемых кластеров для IVF
+            M: Количество соседей в графе для HNSW
+            efSearch: Количество кандидатов при поиске для HNSW
+            m: Количество субвекторов для PQ
+            use_opq: Использовать OPQ препроцессинг
+            use_pca: Использовать PCA препроцессинг
+            
+        Returns:
+            FAISS векторная база
+        """
+        try:
+            # Получаем эмбеддинги документов
+            texts = [doc.page_content for doc in documents]
+            embeddings = embedding_model.embed_documents(texts)
+            embeddings_array = np.array(embeddings).astype('float32')
+            
+            # Получаем размерность
+            dimension = embeddings_array.shape[1]
+            
+            # Создаем индекс в зависимости от типа
+            if index_type == 'IndexFlatIP':
+                index = faiss.IndexFlatIP(dimension)
+            elif index_type == 'IndexIVFFlat':
+                if nlist is None:
+                    nlist = min(100, len(documents) // 10)
+                quantizer = faiss.IndexFlatIP(dimension)
+                index = faiss.IndexIVFFlat(quantizer, dimension, nlist)
+                index.nprobe = nprobe or min(10, nlist)
+            elif index_type == 'IndexHNSWFlat':
+                if M is None:
+                    M = 16
+                index = faiss.IndexHNSWFlat(dimension, M)
+                index.hnsw.efSearch = efSearch or 200
+            elif index_type == 'IndexPQ':
+                if m is None:
+                    m = min(8, dimension // 2)
+                index = faiss.IndexPQ(dimension, m, 8)  # 8 бит на субвектор
+            else:
+                raise ValueError(f"Неподдерживаемый тип индекса: {index_type}")
+            
+            # Применяем препроцессинг
+            if use_opq and index_type != 'IndexFlatIP':
+                opq_matrix = faiss.OPQMatrix(dimension, m or 8)
+                index = faiss.IndexPreTransform(opq_matrix, index)
+            
+            if use_pca and index_type != 'IndexFlatIP':
+                pca_matrix = faiss.PCAMatrix(dimension, min(dimension, 256))
+                index = faiss.IndexPreTransform(pca_matrix, index)
+            
+            # Обучаем индекс (для IVF и PQ)
+            if hasattr(index, 'is_trained') and not index.is_trained:
+                if len(embeddings_array) >= index.ntotal:
+                    index.train(embeddings_array)
+                else:
+                    print("⚠️ Недостаточно данных для обучения индекса, используем IndexFlatIP")
+                    index = faiss.IndexFlatIP(dimension)
+            
+            # Добавляем векторы в индекс
+            index.add(embeddings_array)
+            
+            # Создаем FAISS векторную базу
+            vector_store = FAISS(embedding_model, index, {}, texts)
+            
+            print(f"✅ Создан FAISS индекс типа {index_type} с {index.ntotal} векторами")
+            return vector_store
+            
+        except Exception as e:
+            print(f"❌ Ошибка создания кастомного FAISS индекса: {e}")
+            print("🔄 Используем стандартный IndexFlatIP")
+            return FAISS.from_documents(documents, embedding_model)
 
 
 def create_data_processor(config: Dict[str, Any]) -> DataProcessor:

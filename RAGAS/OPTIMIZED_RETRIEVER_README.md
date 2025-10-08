@@ -97,3 +97,8 @@ python simple_hyperparameter_optimization.py
 
 Результаты будут сохранены в `config/best_simple_retriever_config.yaml`.
 
+
+
+
+
+

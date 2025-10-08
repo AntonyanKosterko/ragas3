@@ -195,6 +195,10 @@ def test_rag_system(config_path: str, max_samples: int = None, rebuild_vector_db
     logger.info(f"Результаты сохранены в {results_file}")
     logger.info("✅ Тестирование завершено!")
     
+    # Выводим метрики в формате JSON для парсинга в скриптах оптимизации
+    metrics_converted = convert_numpy_types(results['metrics'])
+    print(f"MLflow Metrics: {json.dumps(metrics_converted, ensure_ascii=False)}")
+    
     return results
 
 

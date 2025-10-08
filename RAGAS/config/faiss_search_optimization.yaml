@@ -1,0 +1,108 @@
+# Конфигурация для быстрой оптимизации параметров поиска FAISS
+experiment:
+  name: "FAISS_Search_Parameters_Optimization"
+  description: "Оптимизация параметров поиска FAISS без пересборки БД"
+  tags: ["rag", "russian", "evaluation", "faiss", "search_parameters", "100_samples"]
+
+# Настройки данных (фиксированные)
+data:
+  input_path: "datasets/sberquad/documents_for_rag.json"
+  dataset_path: "datasets/sberquad/qa_pairs.json"
+  chunk_size: 300
+  chunk_overlap: 80
+  text_splitter: "recursive"
+  
+# Настройки датасетов
+datasets:
+  sberquad:
+    path: "datasets/sberquad"
+    documents_file: "documents_for_rag.json"
+    qa_pairs_file: "qa_pairs.json"
+    vector_db_path: "datasets/sberquad/vector_db"
+
+# Настройки моделей
+models:
+  embedding:
+    name: "sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2"
+    device: "cpu"
+    normalize_embeddings: true
+    
+  generator:
+    name: "rag"
+    device: "cpu"
+    max_new_tokens: 150
+    temperature: 0.7
+    do_sample: true
+
+# Настройки векторной базы FAISS (фиксированные)
+vector_store:
+  type: "faiss"
+  persist_directory: "datasets/sberquad/vector_db"
+  collection_name: "documents"
+  # Фиксированные параметры индекса
+  index_type: "IndexFlatIP"  # Простой точный поиск
+  nlist: 100
+  nprobe: 10  # Будет оптимизироваться
+  M: 16
+  efSearch: 200  # Будет оптимизироваться
+  m: 8
+  use_opq: false
+  use_pca: false
+
+# Настройки ретривера (фиксированные)
+retriever:
+  search_type: "hybrid"
+  semantic_weight: 0.4
+  bm25_weight: 0.6
+  semantic_k: 8
+  bm25_k: 16
+  final_k: 6
+  bm25_k1: 1.2
+  bm25_b: 0.75
+  k: 6
+  fetch_k: 20
+
+# Настройки гибридного поиска (фиксированные)
+hybrid_search:
+  semantic_weight: 0.4
+  bm25_weight: 0.6
+  semantic_k: 8
+  bm25_k: 16
+  final_k: 6
+  rerank: true
+  normalize_scores: true
+  bm25_k1: 1.2
+  bm25_b: 0.75
+
+# Настройки оценки (100 сэмплов)
+evaluation:
+  max_samples: 100
+  metrics:
+    - "retriever_precision"
+    - "retriever_recall"
+    - "retriever_f1"
+    - "retriever_hit_rate"
+    - "retriever_mrr"
+    - "retriever_ndcg"
+    - "retriever_coverage"
+    - "retriever_diversity"
+    - "retrieval_time"
+    - "response_time"
+    - "generation_time"
+  batch_size: 8
+  save_predictions: true
+
+# Настройки MLflow
+mlflow:
+  experiment_name: "FAISS_Search_Parameters_Optimization"
+  tracking_uri: "file:./mlruns"
+  log_artifacts: true
+  log_models: false
+
+# Настройки логирования
+logging:
+  level: "INFO"
+  format: "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+  file: "logs/faiss_search_optimization.log"
+  console: true
+

@@ -115,3 +115,4 @@ logging:
   file: "logs/rag_hybrid_gpu.log"
   console: true
 
+
